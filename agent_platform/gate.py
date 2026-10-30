@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
 from typing import Any
 
 WRITE_TOOLS = frozenset(
@@ -38,18 +37,35 @@ def is_approval(text: str) -> bool:
     return t.startswith("go ahead") or bool(first and first.group() in APPROVAL_WORDS)
 
 
-@dataclass
-class WriteGate:
-    # ponytail: approval is per tool name, not per exact args (model re-sends args with small
-    # differences). Upgrade path: normalize args and compare them too.
-    blocked: dict[str, dict[str, Any]] = field(default_factory=dict)  # tool -> args, this turn
-    approved: set[str] = field(default_factory=set)
-    ran: set[str] = field(default_factory=set)  # writes executed this turn, as "tool:args-json"
-    trace: list[dict[str, Any]] = field(default_factory=list)  # every call this turn: {tool, args, status}
+class WriteGate(dict):
+    """The gate's state is a plain dict (lists, not sets) so a LangGraph checkpointer saves it as data.
+
+    After a reload it comes back as a bare dict; `WriteGate(saved)` restores the methods.
+    """
+
+    def __init__(self, state: dict[str, Any] | None = None) -> None:
+        super().__init__(blocked={}, approved=[], ran=[], trace=[])
+        self.update(state or {})
+
+    @property
+    def blocked(self) -> dict[str, dict[str, Any]]:  # tool -> args, this turn
+        return self["blocked"]
+
+    @property
+    def approved(self) -> list[str]:
+        return self["approved"]
+
+    @property
+    def ran(self) -> list[str]:  # writes executed this turn, as "tool:args-json"
+        return self["ran"]
+
+    @property
+    def trace(self) -> list[dict[str, Any]]:  # every call this turn: {tool, args, status}
+        return self["trace"]
 
     def start_turn(self, user_text: str) -> None:
-        self.approved = set(self.blocked) if is_approval(user_text) else set()
-        self.blocked, self.ran, self.trace = {}, set(), []
+        self["approved"] = list(self.blocked) if is_approval(user_text) else []
+        self.update(blocked={}, ran=[], trace=[])
 
     def check(self, tool: str, args: dict[str, Any]) -> str | None:
         """Return None if the call may run, else a refusal message for the model."""
@@ -70,9 +86,11 @@ class WriteGate:
         if call in self.ran:
             # Small models sometimes emit the same call twice in one turn; never write twice.
             return "already_done"
+        # ponytail: approval is per tool name, not per exact args (model re-sends args with small
+        # differences). Upgrade path: normalize args and compare them too.
         if tool in self.approved:
-            self.approved.discard(tool)  # one call per approval
-            self.ran.add(call)
+            self.approved.remove(tool)  # one call per approval
+            self.ran.append(call)
             return "ran"
         return "blocked"
 
