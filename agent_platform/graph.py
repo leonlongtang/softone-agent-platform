@@ -5,9 +5,13 @@ from __future__ import annotations
 import os
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable, TypedDict
+from typing import Annotated, Any, AsyncIterator, Callable, TypedDict
+from uuid import uuid4
 
+from langchain_core.messages import AIMessage, AnyMessage
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.constants import END, START
+from langgraph.graph.message import add_messages
 from langgraph.graph.state import StateGraph
 
 from agent_platform.gate import WriteGate
@@ -22,6 +26,8 @@ GATE_KEY = "write_gate"
 
 
 class OrchestratorState(TypedDict, total=False):
+    # LangGraph Server UIs send `messages`; the CLI sends `user_text`. Each turn appends an AI reply.
+    messages: Annotated[list[AnyMessage], add_messages]
     user_text: str
     route: str  # a department, or "clarify"
     runtime: str  # which runtime answered: "ollama", "claude", or "router" for a clarify
@@ -62,13 +68,20 @@ def build_orchestrator(
     claude: RuntimeAdapter,
     policy: RuntimePolicy | None = None,
     router: Callable[[str], str] = hybrid_route,
+    checkpointer: BaseCheckpointSaver | None = None,
 ):
     policy = policy or RuntimePolicy()
 
     async def router_node(state: OrchestratorState) -> OrchestratorState:
+        messages = state.get("messages") or []
+        # Every turn ends with an AI reply, so a trailing human message is this turn's input.
+        if messages and messages[-1].type == "human":
+            state["user_text"] = messages[-1].text
         text = (state.get("user_text") or "").strip()
         artifacts = state.setdefault("artifacts", {})
-        artifacts.setdefault(GATE_KEY, WriteGate()).start_turn(text)
+        # A checkpoint reload returns the gate as a plain dict; rewrap it.
+        artifacts[GATE_KEY] = WriteGate(artifacts.get(GATE_KEY))
+        artifacts[GATE_KEY].start_turn(text)
         pending = artifacts.pop(PENDING_USER_TEXT_KEY, None)
 
         if pending and (chosen := named_department(text)):
@@ -107,8 +120,14 @@ def build_orchestrator(
         return reply
 
     async def run_agent_node(state: OrchestratorState) -> OrchestratorState:
-        if state["route"] == "clarify":
-            return state
+        if state["route"] != "clarify":
+            state = await answer_or_explain(state)
+        trace = state["artifacts"][GATE_KEY].trace
+        calls = [{"name": c["tool"], "args": c["args"], "id": f"call_{uuid4().hex}"} for c in trace]
+        state["messages"] = [AIMessage(state["response"], tool_calls=calls)]
+        return state
+
+    async def answer_or_explain(state: OrchestratorState) -> OrchestratorState:
         state = await run_with_recovery(state)
         if not (state.get("response") or "").strip():
             state["response"] = f"The {state['route']} agent returned no answer. Try rephrasing the request."
@@ -164,7 +183,7 @@ def build_orchestrator(
     graph.add_edge(START, "router")
     graph.add_edge("router", "run_agent")
     graph.add_edge("run_agent", END)
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 def escalation_enabled() -> bool:
