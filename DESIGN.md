@@ -119,3 +119,15 @@ Decided 2026-11-05 (ticket 04), with the user. The mock seed grows to operator s
 - **Consistency (enforced by the generator):** order total = sum of its lines. Invoice status matches the sum of its payments (as `mock_ws` recomputes it). Draft quantities sit in `items.reserved`. Confirmed quantities have already left `items.stock`. Stock never goes negative.
 - **Dates:** bulk invoice and payment dates spread over the 12 months before seeding, each payment on or after its invoice. Original rows keep "now". No schema change (orders still have no date).
 - **Generation:** in `mock_db/create_and_seed.py`, from a fixed `random.Random` seed and small hand-written name lists. No new dependency (no Faker). Every Reset DB gives identical data.
+
+## Visual identity
+
+Decided 2026-11-05 (ticket 03), by the user, from three options on a rough sample (prototype on branch `prototype/visual-identity`, commit `f5886a2`). Values live in `web/app/tokens.css`; this section names the choices, the file holds the numbers.
+
+- **Direction: "Ledger".** Warm stone neutrals with an ink-blue accent: calm, like an accounting ledger. Rejected: "Studio" (zinc + emerald, Inter) and "Console" (slate + indigo, mono tables at 24px rows).
+- **Theme:** **dark by default**, with a manual light/dark toggle (`<html data-theme="light">`). Set `color-scheme` and `<meta name="theme-color">` to match (audit finding).
+- **Typography:** IBM Plex Sans for UI text *and* table cells. Source Code Pro for ids, codes, tool names and args. Both cover Greek (checked against Google Fonts' `greek` subset). Not usable: Geist (the old prototype's font) and IBM Plex Mono have no Greek. Scale: 11 / 12 / 13.5 (table) / 14 (base) / 16px. Number columns use `tabular-nums` and are right-aligned. Amounts and dates are formatted with `Intl` (`el-GR` style for amounts in the sample, e.g. `2.850,00`). The locale choice is ticket 05's.
+- **Density:** 32px rows and controls (the roomiest of the three), 4px spacing grid, 4px radius, 8px on the floating chat.
+- **Semantic colours:** `ok` = inserted row / tool ran, `warn` = updated cell / blocked call / pending-write card, `bad` = deleted row (struck through) / Reject. Each has a `-soft` background. Every text pair (text, muted, accent, ok, warn, bad on their backgrounds) passes WCAG AA 4.5:1 in both modes, checked in the prototype. Colour is never the only signal: rows also carry a `+` / `~` / `−` gutter mark and tool calls a text badge (`READ` / `BLOCKED` / `RAN`).
+- **Name and logo:** "SoftOne Agents" with a plain accent square, **placeholder** until the user decides on branding.
+- **Token names** follow the audit's semantic set (`--bg --panel --text --muted --line --accent --ok --warn --bad` + `-soft`), plus `--raised`, `--accent-text`, `--on-accent`, `--shadow-float`, type, spacing and shape tokens. shadcn's theme variables (`--background`, `--primary`, …) are mapped onto these in the implementation, not duplicated.

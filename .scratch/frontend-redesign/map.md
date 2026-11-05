@@ -31,6 +31,7 @@ Settled while charting (2026-11-05):
 - [01: Audit the live UI: keep, fix or rebuild](issues/01-audit-live-ui.md): keep the API and the client's formatting and approval logic, rebuild the layout. Fix list and reusable tokens/API are in `DESIGN.md` → Current UI audit.
 - [02: Choose the frontend stack](issues/02-choose-the-stack.md): Next.js + Tailwind + shadcn + TanStack Table/Virtual in `web/`, proxying `/api/*` to Starlette. See `DESIGN.md` → Stack.
 - [04: Mock seed at operator scale](issues/04-mock-seed-at-operator-scale.md): extend the seed to ~1,000 orders / 3,000 lines with mixed Greek names, leaving today's rows untouched. See `DESIGN.md` → Demo data.
+- [03: Visual identity: palette, typography, spacing](issues/03-visual-identity.md): "Ledger" (warm stone + ink blue, IBM Plex Sans + Source Code Pro, 32px rows), dark by default. Tokens in `web/app/tokens.css`. See `DESIGN.md` → Visual identity.
 
 ## Not yet specified
 
