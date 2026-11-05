@@ -107,6 +107,7 @@ form button { background: var(--accent); color: var(--on-accent); border-color: 
 #view th, #view td { padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 #view tr.hl td { background: var(--hl); }
 #view td.chg { font-weight: 700; }
+#view tr.gone td { background: var(--bad-soft); color: var(--bad); text-decoration: line-through; }
 .dept { margin-bottom: 16px; } .dept h3 { margin: 0 0 6px; font-size: 13px; text-transform: capitalize; }
 .tool { display: flex; gap: 8px; padding: 3px 0; font-size: 12px; border-bottom: 1px solid var(--line); }
 .tool code { font-family: var(--mono); min-width: 200px; }
@@ -315,16 +316,20 @@ function render() {
   }
   const view = $("view"); view.replaceChildren();
   if (tab === "tools") return renderTools(view);
-  const rows = db[tab] || [];
+  // Match diff entries to rows by primary key; deleted rows are gone from the DB, so show them from `before`.
+  const changes = lastDiff.filter((c) => c.table === tab), pk = (info.keys || {})[tab] || [];
+  const changed = new Map(changes.filter((c) => c.after).map((c) => [JSON.stringify(c.key), c.changed]));
+  const deleted = changes.filter((c) => c.op === "delete").map((c) => c.before);
+  const rows = [...(db[tab] || []), ...deleted];
   if (!rows.length) { view.append(el("div", "empty", "No rows")); return; }
-  const changed = new Map(lastDiff.filter((c) => c.table === tab && c.after).map((c) => [JSON.stringify(c.after), c.changed]));
   const table = el("table"), head = el("tr");
   const cols = Object.keys(rows[0]);
   cols.forEach((c) => head.append(el("th", null, c)));
   table.append(head);
   for (const row of rows) {
-    const tr = el("tr"), hit = changed.get(JSON.stringify(row));
-    if (hit) tr.className = "hl";
+    const tr = el("tr"), gone = deleted.includes(row), hit = !gone && changed.get(JSON.stringify(pk.map((k) => row[k])));
+    if (gone) { tr.className = "gone"; tr.title = "Deleted this turn"; }
+    else if (hit) tr.className = "hl";
     for (const c of cols) {
       const td = el("td", hit && hit.includes(c) ? "chg" : ""), v = row[c] ?? "", n = nameOf(c, v);
       if (c === "status" && v) td.append(el("span", `pill ${String(v).toLowerCase()}`, v));
