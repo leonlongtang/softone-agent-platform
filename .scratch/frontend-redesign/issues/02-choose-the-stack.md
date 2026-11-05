@@ -1,7 +1,7 @@
 # 02: Choose the frontend stack
 
 Type: grilling
-Status: open
+Status: resolved
 Blocked by: 01
 
 ## Question
@@ -19,3 +19,7 @@ The user leans towards Next.js + Tailwind + shadcn. Their answers to the first t
 - More pages are planned, so routing is worth having.
 
 Still open for the session: how Next talks to Starlette (`rewrites` proxy for `/api/*` vs CORS vs a static export), the table library (TanStack Table + Virtual?), where code and `tokens.css` live (`web/`?), and whether CI gets a Node job.
+
+## Answer
+
+See `DESIGN.md` → "Stack". Next.js (App Router) + Tailwind + shadcn, with TanStack Table + Virtual for the tables. Next proxies `/api/*` to the unchanged Starlette API. Code and `tokens.css` live in `web/`. A Node CI job comes with the first implementation ticket. Chosen with the user: a second dev command is fine, reviewers aren't a concern yet, and more pages are planned.
