@@ -224,4 +224,67 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 - **Dropped:** auto-jump and the header subtitle.
 - **Still open:** the name lookup, under paging (map: large-table behaviour).
 
-**Not settled here:** breakpoints and the chat on small screens (ticket 06); motion for fold, open and flash (ticket 07); keyboard shortcuts and focus order between the chat and the table (map fog).
+**Not settled here:** Motion for fold, open and flash (ticket 07); keyboard shortcuts and focus order between the chat and the table (map fog).
+
+## Responsive
+
+Decided 2026-11-05 (ticket 06), by the user, using `.agents/skills/responsive-design/SKILL.md` and its `references/` (breakpoint-strategies, container-queries, fluid-layouts, details).
+
+### Priorities
+
+- **Desktop first, the phone as a glance mode.** Operators work at a desk. On a phone the app stays usable for a quick check or for approving a pending write, but it isn't designed for long sessions. There is no "use a wider screen" block.
+- **Target:** the full layout is designed for **1280×720 and up** and still works at 1024 wide.
+- **Wide screens:** the table fills the width with no cap. Only the chat (880px) and the dialogs have a max width.
+- CSS is still written mobile-first (base styles, then `min-width` queries).
+
+### Breakpoints
+
+Tailwind defaults only: no breakpoint tokens, no fluid type (the 11–16px scale is fixed).
+
+| Width | Layout |
+|---|---|
+| under 640 (`sm`) | phone: docked chat, sheet dialogs, compact top and table bars |
+| 640–1023 | table picker instead of the sidebar; floating chat as on desktop |
+| 1024–1279 (`lg`) | 220px sidebar; the table scrolls sideways |
+| 1280 and up (`xl`) | the full design target |
+
+- **Height:** under `(max-height: 800px)` the open chat stops at 40vh instead of 44vh.
+- **Viewport:** use `dvh`, not `vh`. The viewport meta includes `interactive-widget=resizes-content`.
+
+### Under 1024: the table picker
+
+- The sidebar goes. A **table picker** (a select at the left of the table bar) takes its place. Each option shows the table label, row count and `--warn` change badge.
+- The "Only rows changed this turn" checkbox moves into the picker's menu.
+- Agent tools moves to the runtime menu.
+
+### The table on narrow screens
+
+- It stays a table and scrolls sideways inside its own area. Cards were rejected: they need a second row renderer and break virtualisation and per-cell highlights.
+- The change gutter and the primary-key column stay pinned on the left; the header stays sticky.
+- Rows stay 32px on every screen (they aren't tap targets).
+- Jumping from a chip works the same everywhere: on a phone it folds the sheet first.
+
+### Phone (under 640)
+
+- **Top bar:** brand square only (the name text is hidden) and the runtime menu.
+- **Table bar:** the picker and the "N changed" badge. The filter shrinks to a search icon that opens a full-width input over the bar. The SQL name and row count move into the picker's options.
+- **Chat, folded:** a full-width bar docked to the bottom, with no float gap or side margin. It holds the status line and the composer, and is padded by `env(safe-area-inset-bottom)`.
+- **Chat, open:** a sheet covering everything below the top bar (`100dvh` − 48px) in solid `--raised`, not glass. There's nothing to see through, so the glass contrast risk doesn't apply here.
+  - A pending write forces it open, as on desktop, with Approve/Reject at the bottom.
+  - The sheet shrinks with the on-screen keyboard, so the composer stays visible.
+- **Dialogs** (Agent tools, New chat, Reset, runtime switch) become full-width bottom sheets with their actions at the bottom. At 640 and up they are centred dialogs, at most 560px wide (Agent tools at most 720px).
+
+### Touch
+
+- Under `@media (pointer: coarse)` (not a width query, so touch laptops and iPads are covered), every control has a minimum **44×44px hit area**: buttons, chips, the picker, sidebar and menu items, Approve/Reject, and the fold toggle.
+- Use padding or an invisible larger hit box, so the 32px visual density holds.
+- Table rows stay at 32px.
+
+### Container queries
+
+- Only one: the **approval card** responds to the chat log's width. Under 420px its args stack (label above value) and Approve/Reject go full width.
+- Nothing else uses container queries.
+
+### Check sizes
+
+**375×667, 768×1024, 1024×768, 1280×720, 1920×1080.** At each size the page itself never scrolls sideways (only the table area does). How to check is decided in the testing ticket.
