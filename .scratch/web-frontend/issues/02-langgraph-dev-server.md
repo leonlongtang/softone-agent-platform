@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] `langgraph dev` starts and exposes the orchestrator graph
 - [ ] Through the LangGraph SDK against the real server: create order → blocked write → "yes" → order written in the mock DB, exactly once (checked in the DB)

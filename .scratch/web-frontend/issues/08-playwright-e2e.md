@@ -4,7 +4,7 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] Flow: create order → approval card appears → Approve → tool-call card and diff highlights appear → KPI values change
 - [ ] Deterministic: no LLM calls, no API key needed

@@ -4,7 +4,7 @@
 
 **Blocked by:** 06, 07
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] Start-up instructions verified by following them from a clean checkout
 - [ ] Screenshots and per-turn timings from a real, unedited run; DB state checked (order confirmed, one invoice, no duplicates)

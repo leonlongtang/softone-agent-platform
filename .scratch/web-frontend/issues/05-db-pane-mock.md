@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] All six tables render with newest 50 rows and working "load more"
 - [ ] PK columns marked; NULLs visibly distinct

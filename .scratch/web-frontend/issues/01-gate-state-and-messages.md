@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done in commit 7a658db (spec otherwise superseded by .scratch/frontend-redesign/map.md)
 
 - [ ] With an in-memory checkpointer: blocked write → state saved and reloaded → "yes" runs it exactly once; any non-approval message runs nothing
 - [ ] A `messages` input routes to the same department and gives the same reply as the equivalent `user_text` input

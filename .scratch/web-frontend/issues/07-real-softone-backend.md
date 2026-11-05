@@ -4,7 +4,7 @@
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] Backend chosen by config; mock remains the default
 - [ ] Refusal to start the DB pane with a non-read-only login, covered by a test (login check stubbed)
