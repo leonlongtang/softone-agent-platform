@@ -70,7 +70,9 @@ def test_api_turns_report_trace_pending_and_diff(tmp_path: Path) -> None:
 
     with TestClient(create_app(open_chat=open_chat, db_path=db)) as client:
         assert client.post("/api/chat", json={"runtime": "ollama"}).json()["ready"]
-        assert any(t["write"] for t in client.get("/api/info").json()["tools"]["sales"])
+        info = client.get("/api/info").json()
+        assert any(t["write"] for t in info["tools"]["sales"])
+        assert info["keys"]["order_items"] == ["order_id", "product_id"]  # the page matches diff keys to rows by these
 
         first = client.post("/api/turn", json={"text": "create an order"}).json()
         assert first["pending"] and first["diff"] == []

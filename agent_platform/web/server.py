@@ -65,7 +65,8 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
         return FileResponse(INDEX)
 
     async def get_info(_: Request) -> JSONResponse:
-        return JSONResponse({**info(), "mock": mock, "tools": await _tool_catalog()})
+        keys = db.primary_keys(db_path) if mock else {}
+        return JSONResponse({**info(), "mock": mock, "keys": keys, "tools": await _tool_catalog()})
 
     async def new_chat(request: Request) -> JSONResponse:
         runtime = (await request.json()).get("runtime", "ollama")

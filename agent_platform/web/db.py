@@ -18,6 +18,17 @@ def primary_key(conn: sqlite3.Connection, table: str) -> list[str]:
     return [name for _, name in cols]
 
 
+def primary_keys(db_path: Path = DEFAULT_DB_PATH) -> dict[str, list[str]]:
+    """Primary-key columns per table, so the page can match diff keys to rows."""
+    if not db_path.exists():
+        return {}
+    conn = sqlite3.connect(db_path)
+    try:
+        return {t: primary_key(conn, t) for t in TABLES}
+    finally:
+        conn.close()
+
+
 def snapshot(db_path: Path = DEFAULT_DB_PATH) -> Snapshot:
     if not db_path.exists():
         return {t: {} for t in TABLES}
