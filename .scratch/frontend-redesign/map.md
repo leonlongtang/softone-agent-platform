@@ -1,0 +1,45 @@
+# Map: Frontend redesign
+
+Label: wayfinder:map
+
+## Destination
+
+A complete `DESIGN.md` at the repo root (plus `tokens.css`) that settles the look, structure, responsiveness and motion of the operator workspace: the SoftOne database fills the screen, a floating agent chat sits over it, and after each turn the tables show what changed. The map ends with implementation tickets small enough for one agent session each, every one citing `DESIGN.md`. Nothing is built on the way except `tokens.css`.
+
+## Notes
+
+- **Domain:** SoftOne ERP agent platform. The UI drives the orchestrator turn by turn; writes wait at the write gate until the user says yes. Terms are in `GLOSSARY.md`.
+- **Single source of truth:** every decision lands in `DESIGN.md` (created by the first ticket that needs it). Tickets record the answer and point at the `DESIGN.md` section; they don't restate it.
+- **Taste is the user's:** palette, typography, brand/name/logo, density trade-offs and anything that's a matter of feel go to the user as options. Never pick for them.
+- **Order:** tokens before components, components before motion.
+- **Skills:** audit uses `.agents/skills/web-design-guidelines/SKILL.md` (fetches its rules from GitHub at run time: record the commit/date used); visual identity uses `ui-ux-pro-max`; responsiveness uses `.agents/skills/responsive-design/SKILL.md` (+ its `references/`); motion uses `emil-design-eng`. The two `.agents/` skills aren't loadable by name: read the file and follow it. Each ticket records which skill it actually used.
+- **Standing preferences:** primary audience is SoftOne operators (daily use, dense and calm, like Supabase Studio); hackathon reviewers come second. English UI, fonts must cover Greek. Mock backend only, with a larger seed so density can be judged. Per-turn changes (not streamed). The write gate is unchanged.
+- **Inputs:** live UI `agent_platform/web/index.html` (+ `server.py`, `db.py`); reference only: branch `prototype/frontend-layout` and the superseded `.scratch/web-frontend/spec.md`.
+
+## Decisions so far
+
+<!-- one line per closed ticket: [title](issues/NN-slug.md): gist -->
+
+Settled while charting (2026-11-05):
+
+- The old web-frontend spec is discarded (tickets marked `wontfix`, kept as reference). Ticket 01's gate/`messages` code on master stays.
+- The database is the main surface; the chat floats over a full-screen table.
+- Operators first, mock only with a bigger seed; real SoftOne connection is a later effort.
+- Every write still waits for approval; database changes appear when the turn finishes.
+- The stack is decided after the audit, not assumed.
+
+## Not yet specified
+
+- **Pending-write preview:** whether the tables show what a blocked write *would* do before approval (ghost rows). Depends on the UI/UX structure.
+- **Large-table behaviour:** virtualised scrolling vs paging, search and filters at operator scale. Depends on the stack and the seed size.
+- **Keyboard-first use:** shortcuts for operators (focus chat, approve, jump to change). Depends on the structure.
+- **Testing the new UI:** what browser test proves the loop without an LLM. Depends on the stack.
+- **Accessibility baseline beyond the audit's findings** (focus order between floating chat and table, screen-reader announcement of changes).
+
+## Out of scope
+
+- Moving the agent to LangGraph Server (old tickets 02/04), unless the audit shows the UI needs it.
+- Real SoftOne SQL Server connection (old ticket 07): a later effort.
+- Streaming changes during a turn.
+- Any change to the write gate's logic.
+- A Greek-language UI (fonts must still support Greek).

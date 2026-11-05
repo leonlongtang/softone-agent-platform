@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] Static build is served by Starlette at `/`
 - [ ] Split defaults to 65/35, respects 20% minimums, collapses/expands the chat, and restores its size after reload (including a collapsed chat)

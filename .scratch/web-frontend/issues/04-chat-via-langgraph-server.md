@@ -4,7 +4,7 @@
 
 **Blocked by:** 02, 03
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] Sending a message gets a reply labelled with its department and runtime
 - [ ] Tool calls render as cards with read / blocked / ran status

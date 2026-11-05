@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 05
 
-**Status:** ready-for-agent
+**Status:** wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 
 - [ ] Order → Approve shows the new order and order lines as inserts and `items.reserved` as changed cells
 - [ ] Deletes and composite-key rows are reported correctly

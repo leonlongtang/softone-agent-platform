@@ -1,6 +1,6 @@
 # Spec: Web frontend — live database activity + docked agent chat
 
-Status: ready-for-agent
+Status: wontfix (superseded by .scratch/frontend-redesign/map.md, 2026-11-05)
 Prototype: branch `prototype/frontend-layout` (commit `f6b0f6c`), route `/prototype/workspace`. Verdict: **Variant A** ("feed beside tables") wins.
 
 ## Problem Statement
