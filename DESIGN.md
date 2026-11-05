@@ -105,3 +105,17 @@ Decided 2026-11-05 (ticket 02), with the user.
 - **Where things live:** `web/` at the repo root (as on `prototype/frontend-layout`), with `web/app/tokens.css`. The old `agent_platform/web/index.html` keeps working until the new UI replaces it.
 - **CI:** a Node job (`npm ci`, lint, `next build`) is added together with the first implementation ticket, not before.
 - **From the prototype:** the scaffold, Tailwind v4 / shadcn setup and the "Table editor" pieces may be carried over. The prototype's mock data, variant switcher and docked resizable chat are not.
+
+## Demo data
+
+Decided 2026-11-05 (ticket 04), with the user. The mock seed grows to operator scale so density, scrolling, search and the table of turn changes can be judged. Built by an implementation ticket, not on the way.
+
+- **Extend, don't replace.** Today's rows stay exactly as they are: customers 47–51, items 1001–1005, orders 5001–5005, invoices and payments 1–5. Bulk rows come after them and never reference the original customers or items, so the originals' stock, totals and statuses never move. Tests, the README transcript and the example prompts keep working untouched.
+- **Sizes:** about 200 customers, 300 items, 1,000 orders, 3,000 order lines, 800 invoices, 1,000 payments. That's several screens per table, but `/api/db` can still return whole tables (a few hundred KB) while server paging is open (map fog: large-table behaviour).
+- **Bulk ids:** customers (`trdr`) from 1000, items from 2001 (codes in the existing `WORD-NN` style), orders from 10001, invoices and payments from 1001.
+- **Greek text:** about half the bulk customers have Greek names and addresses (e.g. "Παπαδόπουλος Α.Ε.", "Λεωφ. Κηφισίας 120, Μαρούσι") and about a fifth of the bulk items have Greek names. Everything else is English, including the UI.
+- **Skew:** about 20 big customers carry most of the orders. Item popularity is skewed the same way.
+- **Statuses:** orders about 85% `Confirmed`, 15% `Draft`. There's no cancelled state (see `GLOSSARY.md` → Cancel), so the UI must not expect one. About 30 Confirmed orders have no invoice yet, and there are about 50 ad-hoc invoices with no order. Invoices about 60% paid, 25% unpaid, 15% partial.
+- **Consistency (enforced by the generator):** order total = sum of its lines. Invoice status matches the sum of its payments (as `mock_ws` recomputes it). Draft quantities sit in `items.reserved`. Confirmed quantities have already left `items.stock`. Stock never goes negative.
+- **Dates:** bulk invoice and payment dates spread over the 12 months before seeding, each payment on or after its invoice. Original rows keep "now". No schema change (orders still have no date).
+- **Generation:** in `mock_db/create_and_seed.py`, from a fixed `random.Random` seed and small hand-written name lists. No new dependency (no Faker). Every Reset DB gives identical data.
