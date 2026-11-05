@@ -8,6 +8,8 @@
 
 - [ ] Order → Approve shows the new order and order lines as inserts and `items.reserved` as changed cells
 - [ ] Deletes and composite-key rows are reported correctly
+- [ ] Deleted rows stay visible in the table with a "−" marker, strikethrough and red tint, distinct from inserts and updates (not just the "~" update marker)
 - [ ] Tab change counts and "writes this chat" KPI update after the turn
 - [ ] Tool-call feed shows every call of the chat with status
+- [ ] Each feed row shows the call's arguments (second line or click to expand), and a long tool name can be read in full, so a call can be matched to the rows it touched
 - [ ] Starlette TestClient tests: snapshot by pending ids → writes → diff (insert/update/delete/composite key)
