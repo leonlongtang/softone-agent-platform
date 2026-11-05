@@ -32,13 +32,11 @@ Settled while charting (2026-11-05):
 - [02: Choose the frontend stack](issues/02-choose-the-stack.md): Next.js + Tailwind + shadcn + TanStack Table/Virtual in `web/`, proxying `/api/*` to Starlette. See `DESIGN.md` → Stack.
 - [04: Mock seed at operator scale](issues/04-mock-seed-at-operator-scale.md): extend the seed to ~1,000 orders / 3,000 lines with mixed Greek names, leaving today's rows untouched. See `DESIGN.md` → Demo data.
 - [03: Visual identity: palette, typography, spacing](issues/03-visual-identity.md): "Ledger" (warm stone + ink blue, IBM Plex Sans + Source Code Pro, 32px rows), dark by default. Tokens in `web/app/tokens.css`. See `DESIGN.md` → Visual identity.
+- [05: UI/UX structure, flows and states](issues/05-ui-ux-structure.md): layout A: table sidebar, full table, floating clear-glass chat bar that folds after a write; chips jump to changes, no auto-jump. See `DESIGN.md` → Structure and flows.
 
 ## Not yet specified
 
-- **Pending-write preview:** whether the tables show what a blocked write *would* do before approval (ghost rows). Depends on the UI/UX structure. The audit found no API for it: `/api/turn` only returns the diff after the write.
-- **Large-table behaviour:** virtualised scrolling vs paging, search and filters at operator scale. Rendering is TanStack Virtual (decided with the stack); the seed is about 1,000 orders and 3,000 lines (`DESIGN.md` → Demo data), so server-side paging and search can now be judged against that. The audit found `/api/db` returns whole tables, and the id→name labels look names up in those full tables, so paging needs a names lookup too.
-- **Keyboard-first use:** shortcuts for operators (focus chat, approve, jump to change). Depends on the structure.
-- **Accessibility baseline beyond the audit's findings** (focus order between floating chat and table, screen-reader announcement of changes).
+- **Accessibility baseline beyond the audit's findings:** focus order between the floating chat and the table, screen-reader announcement of turn changes, and contrast of text on the clear-glass chat over busy rows (`DESIGN.md` → Structure and flows). Sharpens once the keyboard shortcuts ticket settles focus.
 
 ## Out of scope
 
