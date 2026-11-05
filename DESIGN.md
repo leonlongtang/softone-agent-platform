@@ -92,3 +92,16 @@ Line numbers refer to `agent_platform/web/index.html`.
 - **Worth carrying into the design:** Variant B "Table editor" (a table list in a sidebar with change dots, row count, an "Only rows changed this turn" filter, PK markers, a `+`/`~` gutter column, dense 28px mono rows, sticky header) is closest to "Supabase Studio for operators". Also worth keeping: the compact mono status badge (`READ`/`BLOCKED`/`RAN`), the theme toggle, and the guarded `localStorage` wrapper.
 - **Not carrying:** the docked, resizable bottom chat (the destination says floating), the KPI tiles (nothing asks for them), and Variant C's timeline (it could come back as chat history, ticket 05's call).
 - **Housekeeping:** the untracked `web/` folder in this working tree only holds build leftovers from that branch (`node_modules`, `.next`, `tsconfig.tsbuildinfo`), no source. Delete it, or keep it ignored, once ticket 02 decides.
+
+## Stack
+
+Decided 2026-11-05 (ticket 02), with the user.
+
+- **Framework:** Next.js (App Router) + React + TypeScript. Routing earns its place because more pages are planned (settings, history, later a real SoftOne login).
+- **Styling & components:** Tailwind CSS + shadcn/ui. Its accessible primitives (tabs, dialog, popover, tooltip) fix the audit's focus, tab-role and missing-confirmation findings. `tokens.css` feeds Tailwind's theme. Token names start from the audit's semantic set (see Current UI audit → Reusable as-is); values are the visual identity ticket's call.
+- **Tables:** TanStack Table (sorting, filtering, column model) + TanStack Virtual (only on-screen rows render). Whether `/api/db` also pages on the server is still open (map fog: large-table behaviour).
+- **Backend contract:** Starlette stays the API, and `/api/*` stays as it is. Next proxies `/api/*` to `http://127.0.0.1:8000` with a `rewrites` rule in `next.config.ts`, so the browser sees one origin and the server needs no CORS.
+- **Running it:** two processes in dev: `python -m agent_platform.web` (API on :8000) and `npm --prefix web run dev` (UI on :3000). `.claude/launch.json` already defines both. A prebuilt bundle for reviewers isn't needed for now.
+- **Where things live:** `web/` at the repo root (as on `prototype/frontend-layout`), with `web/app/tokens.css`. The old `agent_platform/web/index.html` keeps working until the new UI replaces it.
+- **CI:** a Node job (`npm ci`, lint, `next build`) is added together with the first implementation ticket, not before.
+- **From the prototype:** the scaffold, Tailwind v4 / shadcn setup and the "Table editor" pieces may be carried over. The prototype's mock data, variant switcher and docked resizable chat are not.
