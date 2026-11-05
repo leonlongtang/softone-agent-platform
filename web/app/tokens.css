@@ -1,0 +1,54 @@
+/* Design tokens: "Ledger" (DESIGN.md → Visual identity). Dark is the default; light via <html data-theme="light">.
+   Components use these names only, never raw values. Tailwind/shadcn theme variables map onto these. */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces & text */
+  --bg: #171513;          /* page behind the table */
+  --panel: #1e1b18;       /* table, sidebar, header */
+  --raised: #26221e;      /* floating chat, popovers */
+  --text: #ece7e0;
+  --muted: #a89f93;       /* secondary text, ≥ 4.5:1 on --panel and --bg */
+  --line: #36302a;        /* borders, row rules */
+
+  /* Accent (ink blue) */
+  --accent: #93b4ff;
+  --accent-text: #b4caff; /* accent as text on --accent-soft */
+  --on-accent: #0f1a3a;   /* text on a filled --accent button */
+  --accent-soft: #1d2440; /* selected table, focus tint */
+
+  /* Semantic: turn changes and tool calls. ok = inserted row / tool ran; warn = updated cell / blocked
+     (pending write); bad = deleted row / reject. Each foreground passes 4.5:1 on its -soft background. */
+  --ok: #86efac;   --ok-soft: #16291c;
+  --warn: #fbbf24; --warn-soft: #2f2412;
+  --bad: #fda4af;  --bad-soft: #34181e;
+
+  --shadow-float: 0 12px 32px #00000080;
+
+  /* Type: IBM Plex Sans for UI and tables, Source Code Pro for ids, tool names and code. Both cover Greek. */
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "Source Code Pro", ui-monospace, monospace;
+  --text-xs: 11px;      /* column headers, badges, section labels */
+  --text-sm: 12px;      /* chat meta, tool calls, approval details */
+  --text-table: 13.5px; /* table cells (tabular-nums) */
+  --text-base: 14px;    /* UI text, chat messages */
+  --text-lg: 16px;      /* page titles */
+  --leading: 1.45;
+
+  /* Spacing (4px grid) and shape */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+  --row: 32px;          /* table row, sidebar item, control height */
+  --radius: 4px;
+  --radius-lg: 8px;     /* floating chat */
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f4f0; --panel: #fffdf9; --raised: #ffffff; --text: #1f1b16; --muted: #665f55; --line: #e6e0d6;
+  --accent: #1e40af; --accent-text: #1e3a8a; --on-accent: #ffffff; --accent-soft: #e9eefb;
+  --ok: #166534;   --ok-soft: #e9f5ec;
+  --warn: #8a3d0b; --warn-soft: #fcf1e1;
+  --bad: #9f1239;  --bad-soft: #fbeaee;
+  --shadow-float: 0 10px 28px #3a2a1424, 0 2px 6px #3a2a1414;
+}

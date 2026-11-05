@@ -16,3 +16,7 @@ How is the workspace structured, built from the tokens in [Visual identity](03-v
 - Which audited features stay (per [Audit the live UI](01-audit-live-ui.md)).
 
 If this proves too big for one session, split flows and states into a follow-up ticket. Output: a "Structure and flows" section in `DESIGN.md`. HITL.
+
+## Notes from the user (2026-11-05, while choosing the visual identity)
+
+- The chat runs **horizontally along the bottom of the page**, not as a panel on the right. Still to settle here: whether it floats over the table or docks below it, how tall it opens, how it collapses, and how the table keeps its last rows reachable underneath. The visual-identity prototype shows a rough floating version.
