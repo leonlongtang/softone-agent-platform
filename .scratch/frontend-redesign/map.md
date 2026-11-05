@@ -30,11 +30,12 @@ Settled while charting (2026-11-05):
 
 - [01: Audit the live UI: keep, fix or rebuild](issues/01-audit-live-ui.md): keep the API and the client's formatting and approval logic, rebuild the layout. Fix list and reusable tokens/API are in `DESIGN.md` → Current UI audit.
 - [02: Choose the frontend stack](issues/02-choose-the-stack.md): Next.js + Tailwind + shadcn + TanStack Table/Virtual in `web/`, proxying `/api/*` to Starlette. See `DESIGN.md` → Stack.
+- [04: Mock seed at operator scale](issues/04-mock-seed-at-operator-scale.md): extend the seed to ~1,000 orders / 3,000 lines with mixed Greek names, leaving today's rows untouched. See `DESIGN.md` → Demo data.
 
 ## Not yet specified
 
 - **Pending-write preview:** whether the tables show what a blocked write *would* do before approval (ghost rows). Depends on the UI/UX structure. The audit found no API for it: `/api/turn` only returns the diff after the write.
-- **Large-table behaviour:** virtualised scrolling vs paging, search and filters at operator scale. Rendering is TanStack Virtual (decided with the stack); server-side paging and search still depend on the seed size. The audit found `/api/db` returns whole tables, and the id→name labels look names up in those full tables, so paging needs a names lookup too.
+- **Large-table behaviour:** virtualised scrolling vs paging, search and filters at operator scale. Rendering is TanStack Virtual (decided with the stack); the seed is about 1,000 orders and 3,000 lines (`DESIGN.md` → Demo data), so server-side paging and search can now be judged against that. The audit found `/api/db` returns whole tables, and the id→name labels look names up in those full tables, so paging needs a names lookup too.
 - **Keyboard-first use:** shortcuts for operators (focus chat, approve, jump to change). Depends on the structure.
 - **Accessibility baseline beyond the audit's findings** (focus order between floating chat and table, screen-reader announcement of changes).
 

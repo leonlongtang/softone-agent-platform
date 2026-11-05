@@ -14,3 +14,7 @@ _Avoid_: draft, queued change.
 **Turn changes**
 The rows a turn inserted, updated or deleted in the database, shown once the turn finishes.
 _Avoid_: live changes (nothing is shown mid-turn).
+
+**Cancel (an order)**
+Withdrawing a Draft order before it is confirmed. A cancelled order is removed entirely; there is no "cancelled" state, and a Confirmed order can't be cancelled.
+_Avoid_: cancelled status, void.
