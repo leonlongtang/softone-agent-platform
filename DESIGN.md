@@ -126,8 +126,102 @@ Decided 2026-11-05 (ticket 03), by the user, from three options on a rough sampl
 
 - **Direction: "Ledger".** Warm stone neutrals with an ink-blue accent: calm, like an accounting ledger. Rejected: "Studio" (zinc + emerald, Inter) and "Console" (slate + indigo, mono tables at 24px rows).
 - **Theme:** **dark by default**, with a manual light/dark toggle (`<html data-theme="light">`). Set `color-scheme` and `<meta name="theme-color">` to match (audit finding).
-- **Typography:** IBM Plex Sans for UI text *and* table cells. Source Code Pro for ids, codes, tool names and args. Both cover Greek (checked against Google Fonts' `greek` subset). Not usable: Geist (the old prototype's font) and IBM Plex Mono have no Greek. Scale: 11 / 12 / 13.5 (table) / 14 (base) / 16px. Number columns use `tabular-nums` and are right-aligned. Amounts and dates are formatted with `Intl` (`el-GR` style for amounts in the sample, e.g. `2.850,00`). The locale choice is ticket 05's.
+- **Typography:** IBM Plex Sans for UI text *and* table cells. Source Code Pro for ids, codes, tool names and args. Both cover Greek (checked against Google Fonts' `greek` subset). Not usable: Geist (the old prototype's font) and IBM Plex Mono have no Greek. Scale: 11 / 12 / 13.5 (table) / 14 (base) / 16px. Number columns use `tabular-nums` and are right-aligned. Amounts and dates are formatted with `Intl` (`el-GR` style for amounts in the sample, e.g. `2.850,00`). The locale pair (`el-GR` amounts, `en-GB` dates) was confirmed in Structure and flows.
 - **Density:** 32px rows and controls (the roomiest of the three), 4px spacing grid, 4px radius, 8px on the floating chat.
 - **Semantic colours:** `ok` = inserted row / tool ran, `warn` = updated cell / blocked call / pending-write card, `bad` = deleted row (struck through) / Reject. Each has a `-soft` background. Every text pair (text, muted, accent, ok, warn, bad on their backgrounds) passes WCAG AA 4.5:1 in both modes, checked in the prototype. Colour is never the only signal: rows also carry a `+` / `~` / `−` gutter mark and tool calls a text badge (`READ` / `BLOCKED` / `RAN`).
 - **Name and logo:** "SoftOne Agents" with a plain accent square, **placeholder** until the user decides on branding.
 - **Token names** follow the audit's semantic set (`--bg --panel --text --muted --line --accent --ok --warn --bad` + `-soft`), plus `--raised`, `--accent-text`, `--on-accent`, `--shadow-float`, type, spacing and shape tokens. shadcn's theme variables (`--background`, `--primary`, …) are mapped onto these in the implementation, not duplicated.
+
+## Structure and flows
+
+Decided 2026-11-05 (ticket 05), by the user. The user compared three layouts on the operator-scale seed: **A** (sidebar + floating bar), B (tabs + docked console) and C (turn strip). They chose **A**, with the chat as clear glass. Prototype: branch `prototype/structure` (commit `8375107`), file `.scratch/frontend-redesign/prototype-structure.html` (`?variant=A&state=…&glass=clear`).
+
+### Page hierarchy
+
+- **Top bar (48px):** brand placeholder on the left. On the right, the **runtime menu** holds everything operators rarely touch:
+  - the runtime switch (Ollama local, free / Claude, paid per turn), with a confirmation and a visible line explaining the Claude backup (the audit's badge explanation, no longer hover-only);
+  - New chat, Agent tools…, the light/dark toggle, and Reset demo data… (in `--bad`).
+- **Sidebar (220px), "Tables":** Customers, Items, Orders, Order lines, Invoices, Payments (operator labels; the SQL name shows in the table bar).
+  - Each item shows its row count and, when the last turn changed it, a `--warn` badge with the number of changed rows.
+  - Below the list: an **Only rows changed this turn** checkbox, disabled when there are no turn changes.
+  - At the bottom: **Agent tools**, which opens a dialog listing each department's tools with a `READ`/`WRITE` badge and description. This replaces the old Tools tab.
+  - Orders is selected on first load.
+- **Table bar (44px):** table label, SQL name in mono, row count, an "N changed this turn" badge, and a filter box on the right that matches cell values and id labels.
+- **Table:** fills the rest. Sticky header and virtualised rows (TanStack Virtual). The first column is a narrow gutter for the change mark. Cell rules:
+  - ids and codes in mono with `translate="no"`; foreign keys carry a name label (`47 · Soft One Technologies S.A.`);
+  - money right-aligned in `el-GR` style with two decimals (`1.225,00`); integers right-aligned;
+  - dates in `en-GB` (`09 Oct 2026`); the user confirmed this locale pair;
+  - statuses as pills from a fixed value→token map (Confirmed/paid → ok, Draft/partial → warn, unpaid → bad);
+  - nulls as a muted `—`.
+- **Floating chat:** see below. Nothing else floats.
+
+### Floating chat
+
+- Sits over the bottom of the table area, centred, 16px from the bottom, `min(880px, 100% - 32px)` wide, `--radius-lg`, `--shadow-float`.
+- **Clear glass:** background `--glass` (`--raised` at 55%), `backdrop-filter: blur(var(--glass-blur))` (3px), with the composer and chips on a half-transparent `--bg`. Both tokens are in `tokens.css`.
+  - The rows underneath stay readable.
+  - Under `prefers-reduced-transparency` it's solid `--raised`.
+  - The user rejected solid and frosted (70%, 14px blur), which hid the rows.
+  - **Contrast risk:** the AA pairs in Visual identity were checked on solid surfaces. Text on the glass has to be rechecked over the busiest rows (status pills, highlighted rows). If a pair fails, raise the opacity, not the blur.
+- **Two states:**
+  - **open:** the conversation log sits above the composer, scrolls, and stops at 44vh;
+  - **folded:** a status line ("Last turn: approved" + change chips, or the busy indicator) above the composer.
+  - The toggle reads "Hide chat" or "Chat (N)".
+- **The table keeps 96px of bottom padding**, so the last rows scroll clear of the folded chat. While the chat is open it covers rows. That's accepted: the glass keeps them visible, and the chat folds by itself after a write.
+- **Auto-fold:** when a turn ends with turn changes, the chat folds so the highlighted rows show. It's forced open while a pending write waits, and can't be folded until the operator decides.
+- **Composer:** Enter sends, Shift+Enter adds a new line. Send is disabled while a turn runs. While a pending write waits, the input is locked with the placeholder "Approve or reject the pending write first…". The draft survives re-renders.
+- **Empty state:** "Ask the sales, inventory or finance agent. Writes wait for your approval." followed by example prompts as chips, with ids from the new seed.
+
+### A turn in the log
+
+The question appears as a right-aligned `--accent-soft` bubble. Below it:
+1. Reads are folded into one "READ · N reads" disclosure that lists the tool names.
+2. The answer, rendered as markdown.
+3. For a write, the **approval card** (`--warn` border on `--warn-soft`):
+   - a `BLOCKED` badge and "Pending write: needs your approval";
+   - the call with named, labelled args in mono;
+   - **Approve** (filled accent) and **Reject** (`--bad` outline);
+   - while the write runs, the buttons give way to "Writing… Ns"; afterwards the verdict ("Approved" / "Rejected") is stamped on the card.
+4. The result: a `RAN` badge with the tool name, then the reply.
+5. **Change chips**, one per table (`Orders +1`, `Items ~2`, `Order lines −2`).
+
+### What changed
+
+- **Lifetime:** turn changes show from the end of a turn until the next turn ends. A read-only turn clears them; New chat and Reset clear them.
+- **Rows:** rows are matched by primary key and kept in key order.
+  - inserted rows: `--ok-soft` with a `+` in the gutter;
+  - updated rows: `~` in the gutter, with only the changed cells on `--warn-soft` in `--warn`;
+  - deleted rows: stay at their position, struck through on `--bad-soft`, with a `−` in the gutter.
+- **Counts:** shown on the sidebar badges and in the table bar.
+- **Jumping:** the operator moves only by clicking a change chip, in the turn or on the folded bar. A click:
+  - selects the table, clears the filter and the changed-only box, and folds the chat;
+  - scrolls the first changed row to a third of the way down the viewport;
+  - flashes it for 1.6s (a static outline under reduced motion).
+- **No auto-jump to a table** after a turn. The audit marked it "Revisit"; it's dropped because it moves the operator without asking.
+
+### Flows
+
+1. **Ask → answer:** the busy line shows, then the turn renders. The table doesn't change.
+2. **Ask → pending write → Approve:** the chat opens on the approval card and the composer locks. Approve → "Writing…" → the result and chips, the turn changes highlight, and the chat folds.
+   **Reject:** "Okay, nothing was written." Nothing is highlighted.
+3. **New chat** (runtime menu): confirms when there are turns ("The database is not touched") and clears the conversation and the turn changes.
+4. **Switch runtime:** confirms (switching to Claude says each turn is billed), then starts a new chat.
+5. **Reset demo data:** a danger-styled confirmation says the chat is cleared too. It reseeds every table.
+
+### States
+
+- **Busy:** the status line shows "Agent working… Ns". It's announced once (`role="status"`) and the seconds are `aria-hidden`. A slow first Claude turn (~21s) gets the same line and nothing more.
+- **Backend down:** the table area shows "Can't reach the API", the start command (`python -m agent_platform.web`) and **Retry**. Row counts show `—` and the composer is disabled.
+- **Ollama not running:** the turn shows an inline error, "Start Ollama, then retry, or switch the runtime to Claude (paid)", with **Retry**.
+- **Failed turn:** an inline error in the turn ("…Nothing was written.") with **Retry**, which resends the same question.
+- **No database (tools only):** the table area says "No database connected… The chat still works." Row counts show `—`.
+
+### Audited features, where they ended up
+
+- **Kept, as the audit asked:** the runtime switch and the backup explanation move to the runtime menu, the Tools tab becomes the Agent tools dialog, and the example prompts become the empty state. New chat and Reset get confirmations.
+- **Kept, with this section's look:** the approval card, the trace and the name labels.
+- **Changed:** the diff box shrinks to change chips; status pills come from a value map; tab change counts move to the sidebar badges.
+- **Dropped:** auto-jump and the header subtitle.
+- **Still open:** the name lookup, under paging (map: large-table behaviour).
+
+**Not settled here:** breakpoints and the chat on small screens (ticket 06); motion for fold, open and flash (ticket 07); keyboard shortcuts and focus order between the chat and the table (map fog).
