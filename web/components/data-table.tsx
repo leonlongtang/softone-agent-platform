@@ -16,6 +16,8 @@ const PILL = { ok: "text-ok", warn: "text-warn", bad: "text-bad" } as const;
 // tint only their changed cells. Tints are opaque, so pinned cells take them instead of --panel.
 const TINT = { insert: "bg-ok-soft", update: "", delete: "bg-bad-soft" } as const;
 const MARK_TONE = { insert: "text-ok", update: "text-warn", delete: "text-bad" } as const;
+const RULER_TONE = { insert: "bg-ok", update: "bg-warn", delete: "bg-bad" } as const;
+const SPACER = 96; // the bottom spacer below the table, in px
 
 // ponytail: column widths from the longest displayed text × an average glyph width, not measured.
 // Fixed widths keep columns still while rows scroll in and out; measure with canvas if they clip badly.
@@ -103,90 +105,114 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
 
   const pinStyle = (p: number | undefined) => (p === undefined ? undefined : { position: "sticky" as const, left: p });
 
+  // The change ruler (DESIGN.md → What changed → Ruler): a VS Code-style overview strip over the scrollbar track, one
+  // tick per changed row at its place in the content. Clicks fall through to the scrollbar, which scrolls there.
+  const [bar, setBar] = useState(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) setBar(el.offsetWidth - el.clientWidth || 8); // 0 with overlay scrollbars: a thin strip anyway
+  }, []);
+  const content = ROW + n * ROW + SPACER;
+  const ticks = data.flatMap((i, index) => (i.change ? [{ index, op: i.change.op }] : []));
+
   return (
-    <div
-      ref={scrollRef}
-      id="table" // Esc from the composer or filter lands here
-      role="region"
-      aria-label={`${labelFor(name)} table, ${n.toLocaleString("en-GB")} rows${changed ? `, ${changed} changed this turn` : ""}`}
-      tabIndex={0}
-      className="h-full overflow-auto bg-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-    >
-      <table
-        aria-rowcount={n + 1}
-        className="table-fixed border-separate border-spacing-0 text-table tabular-nums"
-        style={{ width: total, minWidth: "100%" }}
+    <div className="relative h-full">
+      {ticks.length > 0 && (
+        <div aria-hidden data-ruler className="pointer-events-none absolute inset-y-0 right-0 z-40" style={{ width: bar }}>
+          {ticks.map((t) => (
+            <span
+              key={t.index}
+              data-tick={t.op}
+              className={`absolute inset-x-0.5 min-h-[3px] rounded-[1px] ${RULER_TONE[t.op]}`}
+              style={{ top: `${((ROW + t.index * ROW) / content) * 100}%`, height: `${(ROW / content) * 100}%` }}
+            />
+          ))}
+        </div>
+      )}
+      <div
+        ref={scrollRef}
+        id="table" // Esc from the composer or filter lands here
+        role="region"
+        aria-label={`${labelFor(name)} table, ${n.toLocaleString("en-GB")} rows${changed ? `, ${changed} changed this turn` : ""}`}
+        tabIndex={0}
+        className="h-full overflow-auto bg-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
       >
-        <colgroup>
-          <col style={{ width: GUTTER }} />
-          {columns.map((c) => <col key={c.id} style={{ width: c.meta.width }} />)}
-        </colgroup>
-        <thead>
-          <tr aria-rowindex={1}>
-            <th aria-hidden className="sticky top-0 left-0 z-30 h-(--row) border-b border-line bg-panel" />
-            {table.getHeaderGroups()[0].headers.map((h, i) => {
-              const p = columns[i].meta.pinned;
-              const dir = sort?.column === h.id ? (sort.desc ? "descending" : "ascending") : undefined;
-              return (
-                <th
-                  key={h.id}
-                  style={pinStyle(p)}
-                  aria-sort={dir}
-                  className={`sticky top-0 h-(--row) border-b border-line bg-panel p-0 text-xs font-medium tracking-[.04em] text-muted-foreground uppercase ${p === undefined ? "z-10" : "z-30"} ${alignRight(h.id) ? "text-right" : "text-left"}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onSort(h.id)}
-                    className={`flex size-full items-center gap-1 px-3 uppercase hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${alignRight(h.id) ? "flex-row-reverse" : ""} ${dir ? "text-foreground" : ""}`}
+        <table
+          aria-rowcount={n + 1}
+          className="table-fixed border-separate border-spacing-0 text-table tabular-nums"
+          style={{ width: total, minWidth: "100%" }}
+        >
+          <colgroup>
+            <col style={{ width: GUTTER }} />
+            {columns.map((c) => <col key={c.id} style={{ width: c.meta.width }} />)}
+          </colgroup>
+          <thead>
+            <tr aria-rowindex={1}>
+              <th aria-hidden className="sticky top-0 left-0 z-30 h-(--row) border-b border-line bg-panel" />
+              {table.getHeaderGroups()[0].headers.map((h, i) => {
+                const p = columns[i].meta.pinned;
+                const dir = sort?.column === h.id ? (sort.desc ? "descending" : "ascending") : undefined;
+                return (
+                  <th
+                    key={h.id}
+                    style={pinStyle(p)}
+                    aria-sort={dir}
+                    className={`sticky top-0 h-(--row) border-b border-line bg-panel p-0 text-xs font-medium tracking-[.04em] text-muted-foreground uppercase ${p === undefined ? "z-10" : "z-30"} ${alignRight(h.id) ? "text-right" : "text-left"}`}
                   >
-                    <span className="truncate"><table.FlexRender header={h} /></span>
-                    {dir && <span aria-hidden>{dir === "ascending" ? "↑" : "↓"}</span>}
-                  </button>
-                </th>
+                    <button
+                      type="button"
+                      onClick={() => onSort(h.id)}
+                      className={`flex size-full items-center gap-1 px-3 uppercase hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${alignRight(h.id) ? "flex-row-reverse" : ""} ${dir ? "text-foreground" : ""}`}
+                    >
+                      <span className="truncate"><table.FlexRender header={h} /></span>
+                      {dir && <span aria-hidden>{dir === "ascending" ? "↑" : "↓"}</span>}
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {top > 0 && <tr aria-hidden style={{ height: top }} />}
+            {items.map((v) => {
+              const row = tableRowsModel[v.index];
+              const change = row.original.change, tint = change ? TINT[change.op] : "";
+              return (
+                <tr
+                  key={row.id}
+                  aria-rowindex={v.index + 2}
+                  data-change={change?.op}
+                  data-flash={flash?.id === row.id ? (jump?.still ? "static" : flash.fade ? "fade" : "true") : undefined} // keys never animate (DESIGN.md → Motion)
+                  className="group h-(--row)"
+                >
+                  <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>
+                    {change && <><span aria-hidden>{changeMark(change)}</span><span className="sr-only">{changeNote(change)}</span></>}
+                  </td>
+                  {row.getAllCells().map((cell, i) => {
+                    const k = cell.column.id, value = cell.getValue(), text = cellText(k, value, nameOf);
+                    const p = columns[i].meta.pinned;
+                    const bg = change?.op === "update" && change.changed.includes(k) ? "bg-warn-soft text-warn forced-colors:outline-1 forced-colors:-outline-offset-1" : tint || (p === undefined ? "" : "bg-panel");
+                    return (
+                      <td
+                        key={cell.id}
+                        lang={isGreek(text) ? "el" : undefined}
+                        style={pinStyle(p)}
+                        className={`truncate border-b border-line px-3 ${p === undefined ? "relative" : "z-20"} ${bg} ${change?.op === "delete" ? "line-through" : ""} ${alignRight(k) ? "text-right" : ""}`}
+                      >
+                        <Cell column={k} value={value} nameOf={nameOf} />
+                      </td>
+                    );
+                  })}
+                </tr>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
-          {top > 0 && <tr aria-hidden style={{ height: top }} />}
-          {items.map((v) => {
-            const row = tableRowsModel[v.index];
-            const change = row.original.change, tint = change ? TINT[change.op] : "";
-            return (
-              <tr
-                key={row.id}
-                aria-rowindex={v.index + 2}
-                data-change={change?.op}
-                data-flash={flash?.id === row.id ? (jump?.still ? "static" : flash.fade ? "fade" : "true") : undefined} // keys never animate (DESIGN.md → Motion)
-                className="group h-(--row)"
-              >
-                <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>
-                  {change && <><span aria-hidden>{changeMark(change)}</span><span className="sr-only">{changeNote(change)}</span></>}
-                </td>
-                {row.getAllCells().map((cell, i) => {
-                  const k = cell.column.id, value = cell.getValue(), text = cellText(k, value, nameOf);
-                  const p = columns[i].meta.pinned;
-                  const bg = change?.op === "update" && change.changed.includes(k) ? "bg-warn-soft text-warn forced-colors:outline-1 forced-colors:-outline-offset-1" : tint || (p === undefined ? "" : "bg-panel");
-                  return (
-                    <td
-                      key={cell.id}
-                      lang={isGreek(text) ? "el" : undefined}
-                      style={pinStyle(p)}
-                      className={`truncate border-b border-line px-3 ${p === undefined ? "relative" : "z-20"} ${bg} ${change?.op === "delete" ? "line-through" : ""} ${alignRight(k) ? "text-right" : ""}`}
-                    >
-                      <Cell column={k} value={value} nameOf={nameOf} />
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-          {bottom > 0 && <tr aria-hidden style={{ height: bottom }} />}
-        </tbody>
-      </table>
-      {/* Clears the folded chat so the last rows can scroll above it: 96px (DESIGN.md → Structure and flows →
-          Floating chat), in px because rem is 14px here (h-24 would be 84px). */}
-      <div aria-hidden className="h-[96px]" />
+            {bottom > 0 && <tr aria-hidden style={{ height: bottom }} />}
+          </tbody>
+        </table>
+        {/* Clears the folded chat so the last rows can scroll above it: 96px (DESIGN.md → Structure and flows →
+            Floating chat), in px because rem is 14px here (h-24 would be 84px). */}
+        <div aria-hidden className="h-[96px]" />
+      </div>
     </div>
   );
 }
