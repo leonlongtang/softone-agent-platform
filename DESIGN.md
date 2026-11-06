@@ -196,7 +196,7 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 - **Jumping:** the operator moves only by clicking a change chip, in the turn or on the folded bar. A click:
   - selects the table, clears the filter and the changed-only box, and folds the chat;
   - scrolls the first changed row to a third of the way down the viewport;
-  - flashes it for 1.6s (a static outline under reduced motion).
+  - flashes it for 1.6s (a static outline under reduced motion; timing in Motion).
 - **No auto-jump to a table** after a turn. The audit marked it "Revisit"; it's dropped because it moves the operator without asking.
 
 ### Flows
@@ -224,7 +224,7 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 - **Dropped:** auto-jump and the header subtitle.
 - **Still open:** the name lookup, under paging (map: large-table behaviour).
 
-**Not settled here:** Motion for fold, open and flash (ticket 07); keyboard shortcuts and focus order between the chat and the table (map fog).
+**Not settled here:** keyboard shortcuts and focus order between the chat and the table (map fog).
 
 ## Responsive
 
@@ -288,3 +288,38 @@ Tailwind defaults only: no breakpoint tokens, no fluid type (the 11–16px scale
 ### Check sizes
 
 **375×667, 768×1024, 1024×768, 1280×720, 1920×1080.** At each size the page itself never scrolls sideways (only the table area does). How to check is decided in the testing ticket.
+
+## Motion
+
+Decided 2026-11-06 (ticket 07), by the user, using the `emil-design-eng` skill. Operators repeat these actions all day, so the default is no motion. Values live in `web/app/tokens.css` (`--ease-*`, `--dur-*`, `--flash-*`, `--spin`).
+
+### Rules
+
+- **CSS only:** transitions, plus one keyframe for the spinner. No animation library (Motion's layout animations run on the main thread and drop frames while the table renders).
+- Only `transform` and `opacity` animate, and transitions always name their properties (never `transition: all`).
+- **Exits are faster than entries.** Everything uses `--ease-out` except the phone sheets (`--ease-drawer`) and the spinner (linear).
+- **Keyboard-initiated actions never animate.**
+
+### Per element
+
+| Element | Motion | Reduced motion |
+|---|---|---|
+| Turn changes (row tints, gutter marks, struck-through deleted rows) | none: they appear when the turn renders | same |
+| Chip jump: scroll | instant (smooth scrolling a virtualised table renders blank rows) | same |
+| Chip jump: flash | `--accent` outline holds `--flash-hold` (1.2s), then fades out over `--flash-fade` (400ms) | static outline for 1.6s |
+| Chat open | log fades in from `translateY(8px)`, `--dur` (200ms); the composer never moves | fade only, ≤ `--dur-fast` |
+| Chat fold (manual or auto-fold) | log fades out to `translateY(8px)`, `--dur-fast` (150ms) | fade only |
+| Chat open/fold from the keyboard | instant | instant |
+| Approval card | no entrance; buttons → "Writing… Ns" → verdict swap instantly | same |
+| Press feedback: buttons and chips (Approve/Reject, Send, Retry, change chips) | `scale(0.97)` on `:active`, `--dur-press` (100ms) | none |
+| Menu, sidebar and table rows | no scale; hover and selected backgrounds change instantly | same |
+| Button hover colour | `--dur-hover` (120ms), only under `(hover: hover) and (pointer: fine)` | same |
+| Busy line ("Agent working… Ns") | spinner, one turn every `--spin` (0.8s), linear | spinner hidden; the counting seconds carry the signal |
+| Menus (runtime menu, table picker) | fade + `scale(0.97)` from the trigger (`transform-origin` at the trigger), `--dur-fast` in, `--dur-press` out | fade only |
+| Dialogs (Agent tools, New chat, Reset, runtime switch) | fade + `scale(0.97)`, centred, `--dur` in, `--dur-fast` out | fade only |
+| Phone bottom sheets (dialogs and the open chat) | `translateY(100%)` → 0, `--dur-sheet` (240ms) in, 180ms out, `--ease-drawer` | fade only |
+| Table switches, filter, changed-only box, theme toggle, new turns in the log, log scroll to the new turn | instant | instant |
+
+### Reduced motion
+
+`prefers-reduced-motion: reduce` means fewer and gentler, not zero: translate, scale, the spinner and smooth scrolling go. Opacity fades stay, at `--dur-fast` (150ms) or less, so it's still clear that a sheet or dialog opened.

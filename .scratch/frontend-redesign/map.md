@@ -34,6 +34,7 @@ Settled while charting (2026-11-05):
 - [03: Visual identity: palette, typography, spacing](issues/03-visual-identity.md): "Ledger" (warm stone + ink blue, IBM Plex Sans + Source Code Pro, 32px rows), dark by default. Tokens in `web/app/tokens.css`. See `DESIGN.md` → Visual identity.
 - [05: UI/UX structure, flows and states](issues/05-ui-ux-structure.md): layout A: table sidebar, full table, floating clear-glass chat bar that folds after a write; chips jump to changes, no auto-jump. See `DESIGN.md` → Structure and flows.
 - [06: Responsive rules](issues/06-responsive-rules.md): desktop first, phone as a glance mode; sidebar becomes a table picker under 1024, the table scrolls sideways (never cards), the chat docks as a solid sheet on phones, 44px touch targets under `pointer: coarse`. See `DESIGN.md` → Responsive.
+- [07: Motion rules](issues/07-motion-rules.md): restraint: CSS only, `transform`/`opacity` only; turn changes, table switches and jumps are instant; chat open 200ms / fold 150ms; chip flash 1.2s + 400ms fade; tokens in `tokens.css`. See `DESIGN.md` → Motion.
 
 ## Not yet specified
 
