@@ -45,6 +45,19 @@
   --row: 32px;          /* table row, sidebar item, control height */
   --radius: 4px;
   --radius-lg: 8px;     /* floating chat */
+
+  /* Motion (DESIGN.md → Motion). Only transform and opacity animate. Under prefers-reduced-motion,
+     components drop translate/scale/spinner/smooth scroll and keep opacity only, at --dur-fast or less. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);    /* entries, exits, fades */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* phone bottom sheets */
+  --dur-press: 100ms;   /* button/chip :active scale(0.97); menu close */
+  --dur-hover: 120ms;   /* button hover colour */
+  --dur-fast: 150ms;    /* menu open, chat fold, dialog close, reduced-motion fades */
+  --dur: 200ms;         /* chat open, dialog open */
+  --dur-sheet: 240ms;   /* phone sheet in (out: 180ms) */
+  --flash-hold: 1.2s;   /* chip-jump outline holds… */
+  --flash-fade: 400ms;  /* …then fades out */
+  --spin: 0.8s;         /* busy spinner, linear */
 }
 
 :root[data-theme="light"] {
