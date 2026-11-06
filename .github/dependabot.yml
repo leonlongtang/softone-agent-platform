@@ -1,0 +1,10 @@
+# The workflow pins actions to exact versions (setup-uv has no major tags since v8); Dependabot bumps the pins.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
