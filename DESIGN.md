@@ -432,7 +432,7 @@ Counts are words (added, changed, deleted), never the chip symbols.
 - Row tints disappear, so meaning rides on the `+ ~ −` marks and the strike-through; changed cells get a 1px border.
 - The chat is solid `Canvas` with a `CanvasText` border; the approval card keeps a 2px border.
 - Pills and badges keep their text and gain a border; the selected table uses `Highlight`.
-- Checked by hand once in Edge's forced-colors emulation, not in CI.
+- Checked by hand once, in Firefox's forced colors (Settings → Contrast control → Custom), not in CI. Filled buttons need `border border-transparent`, or forced colors leaves them with no edge.
 
 ## Testing
 

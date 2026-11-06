@@ -303,7 +303,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
         <button
           type="submit"
           disabled={disabled || waiting || busy || !draft.trim()}
-          className="press h-8 shrink-0 rounded-sm bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+          className="press h-8 shrink-0 rounded-sm border border-transparent bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
         >
           Send
         </button>
@@ -399,7 +399,7 @@ function Verdict({ next, busy, onDecide }: { next?: Entry; busy: boolean; onDeci
       <button
         type="button"
         onClick={() => onDecide("approve")}
-        className="press h-8 rounded-sm bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="press h-8 rounded-sm border border-transparent bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         Approve
       </button>

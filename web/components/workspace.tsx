@@ -366,7 +366,7 @@ export function Workspace() {
                 <button
                   type="button"
                   onClick={retry}
-                  className="h-8 rounded-sm bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="h-8 rounded-sm border border-transparent bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
                   Retry
                 </button>

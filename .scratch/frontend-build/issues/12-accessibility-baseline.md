@@ -1,13 +1,13 @@
 # 12: Accessibility baseline: axe, contrast themes, solid chat
 
-Status: ready-for-human
+Status: resolved
 Blocked by: 10, 11
 Implements: `DESIGN.md` → Accessibility (Glass contrast → solid chat under `prefers-contrast: more`; Contrast themes); Testing → axe
 
 **What to build:** the `forced-colors: active` rules (marks and strike-through carry meaning, changed cells get a border, chat on `Canvas` with a `CanvasText` border, approval card 2px border, bordered pills, `Highlight` for the selected table); the solid chat under `prefers-contrast: more`; and `@axe-core/playwright` scans at the four states in `DESIGN.md` → Testing, in dark and light, failing on serious or critical WCAG 2.1 A/AA violations. Fix what axe finds. Check every announcement sentence in Accessibility → Announcements is wired (earlier tickets did most).
 
 - [x] axe passes at all four states in both themes
-- [ ] Hand check in Edge forced-colors emulation, recorded in the ticket's answer; ask the user to look if the agent can't
+- [x] Hand check in Edge forced-colors emulation, recorded in the ticket's answer; ask the user to look if the agent can't (done in Firefox instead; see the last comment)
 
 ## Comments
 
@@ -16,3 +16,4 @@ Implements: `DESIGN.md` → Accessibility (Glass contrast → solid chat under `
 - **For the user:** the second box stays open. Look in Edge (DevTools → Rendering → Emulate CSS media feature `forced-colors: active`): a write turn, then an approve.
 - Announcements: the approved sentence now ends "Press ] to go to the changes." Backend down at load now says "Can't reach the API." on the status line. A failed Retry sets the same string, so it isn't read again. It is read again if the status line changed in between, for example after a turn.
 - Not done: the phone table picker's selected option has no `Highlight`; it keeps its radio check mark, which survives forced colors.
+- Hand check 2026-11-06, by the user in Firefox, not Edge: the user has no Edge. Done under Settings → Contrast control → Custom, which turns on real `forced-colors: active`, against the fake backend (`tests.e2e_server`): the empty workspace, a write turn, then an approve. The selected-table highlight, the solid chat, the approval card's 2px border, the `+ added` mark on 5006, and the bordered badge and chip all looked right. Approve had no visible edge, because it is drawn with a fill only. Approve, Send and Retry now carry `border border-transparent`, which forced colors paints in the text colour and which is invisible otherwise (the shared `Button` already had it). The user rechecked: Approve has edges now. The `~`/`−` marks and the strike-through were not looked at in Firefox, because the fake can only insert; they stand on the Chromium screenshots above.
