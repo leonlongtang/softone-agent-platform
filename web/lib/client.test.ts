@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
-  applyView, cellKind, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, nextSort, pendingArgs, statusToken,
+  applyView, cellKind, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, nextSort, pendingArgs, statusToken, turnError, turnSentence,
   type Sort, type TraceCall,
 } from "./format.ts";
 
@@ -129,4 +129,26 @@ test("table view: filter on displayed text, sort cycles, FKs by id", () => {
   // by id (3 < 47), not by label (Zeta > Αλφα); nulls first like key order
   assert.deepEqual(ids({ column: "customer_id", desc: false }), [3, 2, 1]);
   assert.deepEqual(ids({ column: "total", desc: false }, "confirmed"), [2, 3]);
+});
+
+test("the status line's sentence after a turn (DESIGN.md → Accessibility → Announcements)", () => {
+  const ins = (table: string, id: number): DiffEntry => ({ table, op: "insert", key: [id], before: null, after: {}, changed: [] });
+  const upd = (table: string, id: number): DiffEntry => ({ table, op: "update", key: [id], before: {}, after: {}, changed: ["price"] });
+  const ok = { response: "done", trace: [], pending: false, diff: [] };
+  assert.equal(turnSentence("ask", ok), "Answer ready.");
+  assert.equal(turnSentence("ask", { ...ok, pending: true }), "");
+  assert.equal(turnSentence("reject", ok), "Rejected. Nothing was written.");
+  assert.equal(
+    turnSentence("approve", { ...ok, diff: [ins("orders", 5006), upd("items", 1), upd("items", 2)] }),
+    "Written. Orders: 1 added. Items: 2 changed.",
+  );
+  assert.equal(turnSentence("ask", { ...ok, response: "", error: "Boom" }), "The turn failed. Nothing was written.");
+  assert.equal(turnSentence("ask", { ...ok, response: "", error: "Boom", diff: [ins("orders", 5006)] }),
+    "The turn failed. Written. Orders: 1 added.");
+  assert.equal(turnSentence("ask", null), "Can't reach the API.");
+
+  const down = { ...ok, response: "", error: "ConnectError: All connection attempts failed" };
+  assert.equal(turnError("ollama", down), "Start Ollama, then retry, or switch the runtime to Claude (paid).");
+  assert.equal(turnError("claude", down), "The turn failed. Nothing was written.");
+  assert.equal(turnError("ollama", null), "Can't reach the API.");
 });

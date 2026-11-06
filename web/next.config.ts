@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // The rewrite proxy drops requests after 30s by default; a local Ollama turn often takes longer.
+  experimental: { proxyTimeout: 10 * 60_000 },
   // One origin for the browser: the Starlette API (python -m agent_platform.web) serves /api/*.
   async rewrites() {
     return [{ source: "/api/:path*", destination: "http://127.0.0.1:8000/api/:path*" }];

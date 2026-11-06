@@ -1,6 +1,6 @@
 // Display rules carried over from the old UI (DESIGN.md → Page hierarchy cell rules, Large tables → Filter).
 // Plain TypeScript, no React or DOM.
-import { compareKeys, type Row } from "./changes.ts";
+import { compareKeys, type DiffEntry, type Row, turnChanges } from "./changes.ts";
 
 const MONEY = new Intl.NumberFormat("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -169,4 +169,45 @@ export function applyView<T extends { row: Row }>(items: T[], view: View, nameOf
   const s = view.sort;
   if (s) out.sort((a, b) => compareKeys([a.row[s.column]], [b.row[s.column]]) * (s.desc ? -1 : 1));
   return out;
+}
+
+/** `POST /api/turn`'s reply. `error` with no `response` is a failed turn. */
+export interface TurnResponse {
+  response: string;
+  trace: TraceCall[];
+  pending: boolean;
+  diff: DiffEntry[] | null;
+  route?: string;
+  runtime?: string;
+  error?: string;
+}
+export type TurnKind = "ask" | "approve" | "reject";
+export type Decision = Exclude<TurnKind, "ask">;
+export const isFailedTurn = (r: TurnResponse | null) => !r || (!!r.error && !r.response);
+
+const WORDS = { insert: "added", update: "changed", delete: "deleted" } as const;
+
+/**
+ * What the status line says when a turn ends (DESIGN.md → Accessibility → Announcements); "" on a pending write,
+ * where focus moves to the approval card instead. `null` is a request that never got an answer.
+ */
+export function turnSentence(kind: TurnKind, r: TurnResponse | null): string {
+  if (!r) return "Can't reach the API.";
+  const written = Object.entries(turnChanges(r.diff)).map(([t, { counts }]) => {
+    const parts = (["insert", "update", "delete"] as const).filter((op) => counts[op]).map((op) => `${counts[op]} ${WORDS[op]}`);
+    return `${labelFor(t)}: ${parts.join(", ")}.`;
+  });
+  const outcome = written.length ? `Written. ${written.join(" ")}` : "Nothing was written.";
+  if (isFailedTurn(r)) return `The turn failed. ${outcome}`;
+  if (r.pending) return "";
+  if (written.length) return outcome;
+  return kind === "reject" ? "Rejected. Nothing was written." : "Answer ready.";
+}
+
+/** A failed turn's inline error (DESIGN.md → States): Ollama down gets its own advice. */
+export function turnError(runtime: string, r: TurnResponse | null): string {
+  if (r && runtime === "ollama" && /ollama|connect|refused/i.test(r.error ?? "")) {
+    return "Start Ollama, then retry, or switch the runtime to Claude (paid).";
+  }
+  return turnSentence("ask", r);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Chat } from "@/components/chat";
 import { DataTable } from "@/components/data-table";
 import { type Row, tableRows } from "@/lib/changes";
 import { applyView, DEFAULT_VIEW, labelFor, nameIndex, nextSort, type View } from "@/lib/format";
@@ -91,7 +92,7 @@ export function Workspace() {
             ))}
           </ul>
         </nav>
-        <main className="flex min-w-0 flex-1 flex-col">
+        <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
             <h1 className="text-lg font-semibold">{labelFor(table)}</h1>
             <span className="font-mono text-sm text-muted-foreground" translate="no">{table}</span>
@@ -144,9 +145,10 @@ export function Workspace() {
               />
             )}
           </div>
+          {/* Last in the DOM, though it floats on top (DESIGN.md → Keyboard → Focus). */}
+          <Chat nameOf={nameOf} runtime={state.status === "ok" ? state.info.runtime : ""} disabled={state.status !== "ok"} />
         </main>
       </div>
-      {/* Floating chat: ticket 06. */}
     </div>
   );
 }
