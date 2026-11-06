@@ -185,8 +185,9 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
           {bottom > 0 && <tr aria-hidden style={{ height: bottom }} />}
         </tbody>
       </table>
-      {/* Clears the floating chat so the last rows can scroll above it. */}
-      <div aria-hidden className="h-24" />
+      {/* Clears the folded chat so the last rows can scroll above it: 96px (DESIGN.md → Structure and flows →
+          Floating chat), in px because rem is 14px here (h-24 would be 84px). */}
+      <div aria-hidden className="h-[96px]" />
     </div>
   );
 }

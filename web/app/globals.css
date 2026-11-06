@@ -72,6 +72,20 @@
   body {
     @apply bg-background text-foreground min-h-dvh;
   }
+
+  /* Touch (DESIGN.md → Responsive → Touch): a 44px hit area on coarse pointers, visuals unchanged. Buttons get an
+     invisible box past their edges; stacked items (menu, sidebar, the changed-only box) touch, so they grow instead.
+     In base, so `absolute`/`sticky` utilities still win over the `relative` here.
+     ponytail: boxes of neighbours closer than 44px overlap (wrapped chips, a row link over Approve), and the later one
+     takes the tap; space them out if mis-taps show up. */
+  @media (pointer: coarse) {
+    button, summary { position: relative; }
+    button::after, summary::after {
+      content: ""; position: absolute; top: 50%; left: 50%;
+      width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
+    }
+    [role^="menuitem"], nav[aria-label="Tables"] button, label:has(> input[type="checkbox"]) { min-height: 44px; }
+  }
 }
 
 /* Floating chat (DESIGN.md → Floating chat, Accessibility → Glass contrast): clear glass frame only;
@@ -82,6 +96,16 @@
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .chat { background: var(--raised); backdrop-filter: none; }
+}
+
+/* The open log's height (DESIGN.md → Structure and flows → Floating chat; Responsive → Breakpoints): 44dvh, 40dvh on short screens.
+   On phones the open chat is a sheet in solid --raised, nothing to see through (Responsive → Phone),
+   and the log takes whatever the sheet leaves. */
+.chat-log { max-height: 44dvh; }
+@media (max-height: 800px) { .chat-log { max-height: 40dvh; } }
+@media (max-width: 639px) {
+  .chat[data-open] { background: var(--raised); backdrop-filter: none; }
+  .chat-log { max-height: none; flex: 1; min-height: 0; }
 }
 
 /* The agent's answer, rendered from markdown. */

@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Every corner holds a control (the phone chat docks along the bottom); compile and runtime errors still show.
+  devIndicators: false,
   // The rewrite proxy drops requests after 30s by default; a local Ollama turn often takes longer.
   experimental: { proxyTimeout: 10 * 60_000 },
   // One origin for the browser: the Starlette API (python -m agent_platform.web) serves /api/*.

@@ -4,7 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Chat, type ChatHandle, type Jump } from "@/components/chat";
 import { DataTable } from "@/components/data-table";
 import { Dialogs, type DialogState, NAME, type Runtime, RuntimeMenu, type Tool } from "@/components/runtime-menu";
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tip } from "@/components/ui/tooltip";
+import { SearchIcon } from "lucide-react";
 import { type Row, type TableChanges, tableRows, turnChanges } from "@/lib/changes";
 import {
   applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, stepChange, type TraceCall, type TurnResponse,
@@ -47,6 +52,50 @@ async function load(): Promise<State> {
   } catch {
     return { status: "down" };
   }
+}
+
+/** A table's "N changed" badge; the sr-only commas keep it one phrase in a button's name. */
+const ChangedBadge = ({ n }: { n: number }) => (
+  <span className="ml-auto rounded-sm bg-warn-soft px-1 text-xs text-warn tabular-nums">
+    <span className="sr-only">, </span>{n}<span className="sr-only"> changed,</span>
+  </span>
+);
+
+/**
+ * Under 1024 the sidebar's job (DESIGN.md → Responsive → Under 1024: the table picker): label, row count and change
+ * badge per table, and the changed-only box. On phones each option also carries the SQL name the table bar drops.
+ */
+function TablePicker({ table, pick, count, changedIn, changedOnly, hasChanges, setOnlyChanged }: {
+  table: string; pick: (t: string) => void; count: (t: string) => string; changedIn: (t: string) => number;
+  changedOnly: boolean; hasChanges: boolean; setOnlyChanged: (on: boolean) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Table: ${labelFor(table)}`}
+        className="flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-2 text-lg font-semibold hover:bg-raised focus-visible:outline-2 focus-visible:outline-ring lg:hidden"
+      >
+        {labelFor(table)}
+        <span aria-hidden className="text-sm text-muted-foreground">▾</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-72">
+        <DropdownMenuRadioGroup value={table} onValueChange={(t) => pick(t as string)}>
+          {TABLES.map((t) => (
+            <DropdownMenuRadioItem key={t} value={t}>
+              {labelFor(t)}
+              <span className="font-mono text-xs text-muted-foreground md:hidden" translate="no">{t}</span>
+              {changedIn(t) > 0 && <ChangedBadge n={changedIn(t)} />}
+              <span className={`${changedIn(t) > 0 ? "" : "ml-auto"} text-muted-foreground tabular-nums`}>{count(t)}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem checked={changedOnly} disabled={!hasChanges} onCheckedChange={setOnlyChanged}>
+          Only rows changed this turn
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 function Notice({ children }: { children: React.ReactNode }) {
@@ -152,12 +201,20 @@ export function Workspace() {
 
   // Keys (DESIGN.md → Keyboard → Keys), by physical key so they work on the Greek layout too.
   const filterRef = useRef<HTMLInputElement>(null);
+  // On a phone the filter is an icon until opened, and stays open while it holds text.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searching = searchOpen || !!view.filter;
+  const openFilter = () => {
+    setSearchOpen(true);
+    requestAnimationFrame(() => filterRef.current?.focus()); // after the render that shows it
+  };
   function onKey(e: KeyboardEvent) {
     if (dialog || inOverlay(e.target)) return;
     if (e.code === "KeyF" && (e.ctrlKey || e.metaKey) && !e.altKey) {
       const f = filterRef.current; // pressed again in the filter, or in the composer: the browser's find
       if (!f || f.disabled || e.target === f || e.target instanceof HTMLTextAreaElement) return;
       e.preventDefault();
+      setSearchOpen(true);
       f.focus();
       f.select();
       return;
@@ -175,6 +232,7 @@ export function Workspace() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+  const pick = (t: string) => { setTable(t); setJumpTo(null); }; // a remount must not replay the last jump
   const linksFor = (call: TraceCall) => (db ? rowLinks(call, db, keys) : []);
   const changedIn = (t: string) => changes[t]?.counts.total ?? 0;
   const count = (t: string) => (db ? (db[t]?.length ?? 0).toLocaleString("en-GB") : "—");
@@ -185,14 +243,13 @@ export function Workspace() {
     const to = ({ ArrowDown: (i + 1) % n, ArrowUp: (i - 1 + n) % n, Home: 0, End: n - 1 } as Record<string, number>)[e.key];
     if (to === undefined) return;
     e.preventDefault();
-    setTable(TABLES[to]);
-    setJumpTo(null);
+    pick(TABLES[to]);
     e.currentTarget.querySelectorAll("button")[to]?.focus();
   }
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-4">
+      <header className="flex h-[48px] shrink-0 items-center gap-2 border-b border-line bg-panel px-4">
         <a
           href="#chat"
           className="sr-only rounded-sm bg-primary px-2 py-1 text-primary-foreground focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50"
@@ -200,7 +257,7 @@ export function Workspace() {
           Skip to chat
         </a>
         <span aria-hidden className="size-3 rounded-sm bg-primary" />
-        <span className="text-lg font-semibold">SoftOne Agents</span>
+        <span className="hidden text-lg font-semibold sm:inline">SoftOne Agents</span>
         <RuntimeMenu
           runtime={info?.runtime ?? null}
           escalation={!!info?.escalation}
@@ -213,7 +270,7 @@ export function Workspace() {
         />
       </header>
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Tables" className="flex w-[220px] shrink-0 flex-col border-r border-line bg-panel p-2">
+        <nav aria-label="Tables" className="hidden w-[220px] shrink-0 lg:flex flex-col border-r border-line bg-panel p-2">
           <h2 className="px-2 pt-1.5 pb-0.5 text-xs tracking-[.05em] text-muted-foreground uppercase">Tables</h2>
           <ul onKeyDown={onListKey}>
             {TABLES.map((t) => (
@@ -221,15 +278,11 @@ export function Workspace() {
                 <button
                   type="button"
                   aria-current={t === table ? "true" : undefined}
-                  onClick={() => { setTable(t); setJumpTo(null); }} // a remount must not replay the last jump
+                  onClick={() => pick(t)}
                   className="flex h-8 w-full items-center rounded-sm px-2 text-left hover:bg-raised aria-[current]:bg-accent-soft aria-[current]:text-accent-text focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   {labelFor(t)}
-                  {changedIn(t) > 0 && (
-                    <span className="ml-auto rounded-sm bg-warn-soft px-1 text-xs text-warn tabular-nums">
-                      <span className="sr-only">, </span>{changedIn(t)}<span className="sr-only"> changed,</span>
-                    </span>
-                  )}
+                  {changedIn(t) > 0 && <ChangedBadge n={changedIn(t)} />}
                   <span className={`${changedIn(t) > 0 ? "ml-2" : "ml-auto"} text-sm text-muted-foreground tabular-nums`}>{count(t)}</span>
                 </button>
               </li>
@@ -249,15 +302,27 @@ export function Workspace() {
           </button>
         </nav>
         <main className="relative flex min-w-0 flex-1 flex-col">
-          <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
-            <h1 className="text-lg font-semibold">{labelFor(table)}</h1>
-            <span className="font-mono text-sm text-muted-foreground" translate="no">{table}</span>
-            <span className="text-muted-foreground">
+          {/* Phones keep the picker and the badge; the filter folds to an icon (DESIGN.md → Responsive → Phone).
+              Bars in px: rem is 14px here, so h-11 would be 38.5px. */}
+          <div className="relative flex h-[44px] shrink-0 items-center gap-3 border-b border-line bg-panel px-2 sm:px-4">
+            <h1 className="sr-only text-lg font-semibold lg:not-sr-only">{labelFor(table)}</h1>
+            <TablePicker table={table} pick={pick} count={count} changedIn={changedIn} changedOnly={changedOnly}
+              hasChanges={hasChanges} setOnlyChanged={setOnlyChanged} />
+            <span className="hidden font-mono text-sm text-muted-foreground md:inline" translate="no">{table}</span>
+            <span className="hidden whitespace-nowrap text-muted-foreground sm:inline">
               {db && (view.filter.trim() || changedOnly) ? `${shown.length.toLocaleString("en-GB")} of ` : ""}
               {count(table)} rows
             </span>
             {changedIn(table) > 0 && (
-              <span className="rounded-sm bg-warn-soft px-1.5 text-sm text-warn">{changedIn(table)} changed this turn</span>
+              <span className="shrink-0 rounded-sm bg-warn-soft px-1.5 text-sm whitespace-nowrap text-warn">
+                {changedIn(table)} changed<span className="hidden sm:inline"> this turn</span>
+              </span>
+            )}
+            {!searching && (
+              <button type="button" aria-label={`Filter ${labelFor(table)}`} disabled={!db} onClick={openFilter}
+                className="ml-auto grid size-8 place-items-center rounded-sm text-muted-foreground hover:bg-raised focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 sm:hidden">
+                <SearchIcon aria-hidden className="size-4" />
+              </button>
             )}
             <Tip label="Filter" keys="Ctrl/Cmd+F">
               <input
@@ -275,7 +340,8 @@ export function Workspace() {
                   if (view.filter) setView(table, { ...view, filter: "" });
                   else focusTable();
                 }}
-                className="ml-auto h-8 w-60 rounded-sm border border-line bg-bg px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+                onBlur={() => setSearchOpen(false)} // stays over the bar while it holds a filter
+                className={`ml-auto h-8 w-40 lg:w-60 ${searching ? "max-sm:absolute max-sm:inset-x-2 max-sm:z-10 max-sm:w-auto" : "max-sm:hidden"} rounded-sm border border-line bg-bg px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50`}
               />
             </Tip>
           </div>

@@ -202,10 +202,16 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
       id="chat" // the "Skip to chat" target
       tabIndex={-1}
       aria-label="Chat"
-      className="chat absolute bottom-4 left-1/2 flex w-[min(880px,100%-32px)] -translate-x-1/2 flex-col gap-2 rounded-lg p-2 shadow-float"
+      data-open={open || undefined}
+      // Phone first (DESIGN.md → Responsive → Phone): a bar docked to the bottom edge, or open, a sheet over everything
+      // below the top bar that shrinks with the on-screen keyboard. From 640 it floats (DESIGN.md → Structure and flows → Floating chat).
+      // z-40: over the table's pinned cells (z-30), under menus and dialogs (z-50).
+      className="chat absolute inset-x-0 bottom-0 z-40 flex flex-col gap-2 border-t border-line p-2 pb-[calc(var(--space-2)+env(safe-area-inset-bottom))] max-sm:data-open:top-0 sm:right-auto sm:bottom-4 sm:left-1/2 sm:w-[min(880px,100%-32px)] sm:-translate-x-1/2 sm:rounded-lg sm:border-0 sm:pb-2 sm:shadow-float"
     >
       {open && (
-        <div ref={logRef} className="flex max-h-[44vh] flex-col gap-2 overflow-y-auto">
+        // The approval card's one container query reads this width (DESIGN.md → Responsive → Container queries).
+        // mt-auto on the first entry: in a sheet taller than the log, the latest turn sits by the composer.
+        <div ref={logRef} className="chat-log @container flex flex-col gap-2 overflow-y-auto [&>:first-child]:mt-auto">
           {entries.length === 0 && (
             <div className={`${block} flex flex-col items-center gap-2 text-center`}>
               <p className="text-muted-foreground">Ask the sales, inventory or finance agent. Writes wait for your approval.</p>
@@ -344,7 +350,8 @@ function Turn({ entry: e, next, isLast, live, busy, nameOf, runtime, cardRef, on
               {blocked.map((t, i) => (
                 <div key={i} className="text-sm">
                   <p className="font-mono" translate="no">{labelFor(t.tool.replace(/^workflow_/, ""))} · {t.tool}</p>
-                  <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                  {/* Under 420px of log the args stack, label over value (DESIGN.md → Responsive → Container queries). */}
+                  <dl className="mt-1 grid grid-cols-1 gap-x-3 gap-y-0.5 @min-[420px]:grid-cols-[auto_1fr]">
                     {pendingArgs(t.args, nameOf).map(([k, v], j) => (
                       <div key={j} className="contents">
                         <dt className="text-muted-foreground">{k}</dt>
@@ -382,7 +389,7 @@ function Verdict({ next, busy, onDecide }: { next?: Entry; busy: boolean; onDeci
   }
   if (next) return null; // a failed or in-flight reply: its own line has Retry
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 *:flex-1 @min-[420px]:*:flex-none">{/* full width under 420px of log */}
       <button
         type="button"
         onClick={() => onDecide("approve")}

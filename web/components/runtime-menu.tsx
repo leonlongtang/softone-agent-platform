@@ -100,14 +100,17 @@ export function RuntimeMenu({ runtime, escalation, ready, canReset, hasTurns, se
   );
 }
 
-/** The one open dialog: Agent tools, Keyboard shortcuts, or a confirm. Centred, at most 560px (Agent tools 720px). */
+/**
+ * The one open dialog: Agent tools, Keyboard shortcuts, or a confirm. Centred, at most 560px (Agent tools 720px);
+ * on phones a full-width bottom sheet, actions last (DESIGN.md → Responsive → Phone).
+ */
 export function Dialogs({ dialog, setDialog, tools }: {
   dialog: DialogState; setDialog: (d: DialogState) => void; tools: Record<string, Tool[]>;
 }) {
   const confirm = typeof dialog === "object" ? dialog : null;
   return (
     <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>
-      <DialogContent className={`rounded-lg ${dialog === "tools" ? "sm:max-w-[720px]" : "sm:max-w-[560px]"}`}>
+      <DialogContent className={`rounded-lg max-sm:top-auto max-sm:bottom-0 max-sm:max-w-none max-sm:translate-y-0 max-sm:rounded-b-none max-sm:pb-[calc(var(--space-4)+env(safe-area-inset-bottom))] ${dialog === "tools" ? "sm:max-w-[720px]" : "sm:max-w-[560px]"}`}>
         {dialog === "tools" && (
           <>
             <DialogHeader>
@@ -159,7 +162,7 @@ export function Dialogs({ dialog, setDialog, tools }: {
               <DialogTitle>{confirm.title}</DialogTitle>
               <DialogDescription>{confirm.body}</DialogDescription>
             </DialogHeader>
-            <DialogFooter className="rounded-b-lg">
+            <DialogFooter className="rounded-b-lg max-sm:mb-[calc(-1*(var(--space-4)+env(safe-area-inset-bottom)))] max-sm:rounded-b-none max-sm:pb-[calc(var(--space-4)+env(safe-area-inset-bottom))]">
               <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
               <Button
                 variant={confirm.danger ? "destructive" : "default"}

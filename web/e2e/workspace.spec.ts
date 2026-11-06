@@ -34,6 +34,39 @@ test("approve: 5006 is marked added, the chat folds, the chip reads Orders +1", 
   await expect(page.getByRole("navigation", { name: "Tables" }).getByRole("button", { name: /^Orders/ })).toContainText("1 changed");
 });
 
+// Flow 1 at phone size (DESIGN.md → Responsive → Phone): the chat is a sheet below the top bar while it's open,
+// a bar docked to the bottom edge while it's folded.
+test("phone approve: the sheet opens on the card, Approve folds it to the docked bar", { tag: "@phone" }, async ({ page }) => {
+  await askForWrite(page);
+  const chat = page.getByRole("region", { name: "Chat" });
+  const vp = page.viewportSize()!;
+  expect(await chat.boundingBox()).toEqual({ x: 0, y: 48, width: vp.width, height: vp.height - 48 });
+  const approve = page.getByRole("button", { name: "Approve" });
+  await expect(approve).toBeInViewport();
+  expect((await approve.boundingBox())!.y).toBeGreaterThan(vp.height * 0.6); // at the bottom, by the composer
+  await expect(page.getByRole("button", { name: "Reject" })).toBeInViewport();
+
+  await approve.click();
+  await expect(order5006(page)).toHaveAttribute("data-change", "insert");
+  await expect(page.getByRole("button", { name: "Chat (1)" })).toBeVisible();
+  const bar = (await chat.boundingBox())!;
+  expect([bar.x, bar.width, bar.y + bar.height]).toEqual([0, vp.width, vp.height]);
+  await expect(page.getByRole("list", { name: "Changes this turn" })).toHaveText("Orders +1");
+
+  // The picker stands in for the sidebar: counts and change badges per table.
+  await page.getByRole("button", { name: "Table: Orders" }).click();
+  await expect(page.getByRole("menuitemradio", { name: /^Orders/ })).toContainText("1 changed");
+  await page.getByRole("menuitemradio", { name: /^Items/ }).click();
+  await expect(page.getByRole("region", { name: /^Items table/ })).toBeVisible();
+
+  // A chip in the open sheet folds it, then jumps.
+  await page.getByRole("button", { name: "Chat (1)" }).click();
+  await page.getByRole("button", { name: "Orders +1" }).click();
+  await expect(page.getByRole("button", { name: "Chat (1)" })).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Orders table/ })).toBeFocused();
+  await expect(order5006(page)).toBeInViewport();
+});
+
 test("chip jump: from another table, Orders +1 selects Orders with 5006 in view", async ({ page }) => {
   await askForWrite(page);
   const card = page.getByRole("group", { name: "Pending write: needs your approval" });
@@ -89,6 +122,21 @@ test("reject: nothing was written and no row is highlighted", async ({ page }) =
   await expect(page.getByText("Okay, nothing was written.")).toBeVisible();
   await expect(page.locator("tr[data-change]")).toHaveCount(0);
   await expect(order5006(page)).toHaveCount(0);
+});
+
+// DESIGN.md → Responsive → Check sizes: only the table area scrolls sideways. The root clips its overflow, so the
+// top bar and table bar are checked too: they'd hide a control rather than scroll the page.
+test("no sideways scroll at the check sizes", async ({ page }) => {
+  for (const [width, height] of [[375, 667], [768, 1024], [1024, 768], [1280, 720], [1920, 1080]]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    await expect(page.getByRole("region", { name: /^Orders table/ })).toBeVisible();
+    const over = await page.evaluate(() =>
+      [document.documentElement, document.querySelector("header"), document.querySelector("main > div")]
+        .filter((el) => el && el.scrollWidth > (el === document.documentElement ? innerWidth : el.clientWidth))
+        .map((el) => el!.tagName));
+    expect(over, `${width}×${height}`).toEqual([]);
+  }
 });
 
 test("backend down: Can't reach the API, with Retry", async ({ page }) => {
