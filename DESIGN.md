@@ -323,3 +323,38 @@ Decided 2026-11-06 (ticket 07), by the user, using the `emil-design-eng` skill. 
 ### Reduced motion
 
 `prefers-reduced-motion: reduce` means fewer and gentler, not zero: translate, scale, the spinner and smooth scrolling go. Opacity fades stay, at `--dur-fast` (150ms) or less, so it's still clear that a sheet or dialog opened.
+
+## Testing
+
+Decided 2026-11-06 (ticket 09), with the user. The goal is one browser test that proves the workspace loop (ask, approval card, approve, change in the table) without an LLM.
+
+### Tool and layout
+
+- **Playwright:** `@playwright/test` lives in `web/`, with its specs in `web/e2e/`. Its `webServer` config starts both servers and waits on their ports.
+- **Fake backend:** `tests/e2e_server.py` is a test-only entry point. It builds a throwaway mock DB and serves `create_app(open_chat=…)` with `FakeOrchestrator` on :8000. `FakeOrchestrator` moves from `tests/test_web.py` to `tests/fakes.py`, so the pytest and Playwright suites share it. `python -m agent_platform.web` gets no test flag.
+- **The fake stays as it is:** it blocks `create_order` until the user says "yes", then inserts order 5006. Nothing that needs a scriptable fake is covered.
+- **Which build:** in CI the test runs against `next build && next start`. Locally it runs against `next dev` and reuses servers already running (`reuseExistingServer`).
+
+### Flows covered
+
+1. **Approve:** ask, and the approval card shows with the composer locked. After Approve, order 5006 is marked `+` in Orders, the chat folds, and the chip reads `Orders +1`.
+2. **Reject:** ask, then Reject. "Nothing was written" shows and no row is highlighted.
+3. **Chip jump:** after an approve, switch to another table and click `Orders +1`. Orders is selected and the row is in view.
+4. **Backend down:** `/api/*` is failed with Playwright request interception. "Can't reach the API" and Retry show.
+
+There are two projects. All four flows run on desktop (1440×900); flow 1 also runs at phone size (390×844), where the chat is a docked sheet.
+
+Not covered, on purpose: New chat, the runtime switch, Reset, a read-only turn, and the failed-turn and Ollama-down errors. Each is thin UI over code that's already tested.
+
+### Unit check
+
+The client logic carried over from the old UI gets one check file, run with Node's built-in `node --test`: changed rows matched by primary key, and `el-GR` money formatting. There's no JS test framework.
+
+### CI
+
+The Node job from Stack (`npm ci`, lint, `next build`) gains the Playwright run with the implementation ticket that delivers the approve loop. It runs Chromium only, on Linux, and installs uv so the fake server can start. It sits next to the `pytest` job.
+
+### Left out
+
+- **Screenshot and visual-regression tests:** too brittle while the look is still settling.
+- **axe and other accessibility scans:** they wait for the accessibility baseline (map fog).
