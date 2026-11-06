@@ -39,10 +39,11 @@ Settled while charting (2026-11-05):
 - [10: Pending-write preview](issues/10-pending-write-preview.md): no ghost rows (approval goes by tool name, so a preview from the blocked args can be wrong); the approval card gets links to the existing rows a call names, which jump like chips. See `DESIGN.md` → Structure and flows → Pending-write preview.
 - [11: Large-table behaviour: paging, filter, names](issues/11-large-table-behaviour.md): no server paging; whole tables (gzipped) filtered, sorted and labelled in the browser; accent-insensitive filter on displayed text; single-column sort reset by chip jumps. See `DESIGN.md` → Large tables.
 - [12: Keyboard shortcuts for operators](issues/12-keyboard-shortcuts.md): punctuation keys by physical key (`/` composer, `Esc` fold, `]`/`[` next change, `?` help) plus Ctrl/Cmd+F to the filter; no Approve/Reject shortcut; one-stop table in a skip link → sidebar → filter → table → chat order. See `DESIGN.md` → Keyboard.
+- [13: Accessibility baseline: announcements, glass contrast, automated checks](issues/13-accessibility-baseline.md): one sentence per turn end and jump on the status line; row counts and change words for readers, `lang="el"` on Greek; clear glass failed AA under text, so text blocks go solid and the glass stays on the frame; axe in the flows plus a keyboard approve flow. See `DESIGN.md` → Accessibility.
 
 ## Not yet specified
 
-<!-- empty: the accessibility patch graduated to ticket 13 -->
+<!-- empty: the way to the destination is clear; only the implementation-tickets task remains -->
 
 ## Out of scope
 
