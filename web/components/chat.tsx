@@ -4,10 +4,11 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Tip } from "@/components/ui/tooltip";
-import { type DiffEntry, turnChanges } from "@/lib/changes";
+import type { TableChanges } from "@/lib/changes";
+import { ClientError, decide, failedTurn, turn } from "@/lib/client";
 import {
   changeChips, type Decision, foldReads, formatArgs, isFailedTurn, isGreek, labelFor, type NameOf, pendingArgs, type RowLink,
-  TRACE_BADGE, type TraceCall, turnError, type TurnKind, type TurnResponse, turnSentence,
+  TRACE_BADGE, type TraceCall, type Turn, turnError, type TurnKind, turnSentence,
 } from "@/lib/format";
 
 // Example prompts use the original seed rows, which the operator-scale seed keeps (DESIGN.md → Demo data).
@@ -23,7 +24,7 @@ interface Entry {
   kind: TurnKind;
   text: string;
   state: "busy" | "done" | "failed";
-  res?: TurnResponse | null; // null: the request never got an answer
+  res?: Turn | null; // null: the request never got an answer
 }
 
 const TONE = { ok: "text-ok border-ok", warn: "text-warn border-warn", bad: "text-bad border-bad", muted: "text-muted-foreground border-line" };
@@ -35,13 +36,13 @@ const lang = (s: string) => (isGreek(s) ? "el" : undefined);
 const isCoarse = () => matchMedia("(pointer: coarse)").matches;
 const block = "rounded-md bg-raised px-3 py-2"; // every text block is solid: text never sits on the glass
 
-/** `{text}` for anything typed, `{decision}` for the Approve and Reject buttons. */
-async function postTurn(body: { text: string } | { decision: Decision }): Promise<TurnResponse | null> {
+/** Text for anything typed, a Decision for the Approve and Reject buttons. A refused turn shows the server's error;
+ * `null` is a request that never got an answer. */
+async function postTurn(kind: TurnKind, text: string): Promise<Turn | null> {
   try {
-    const r = await fetch("/api/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    return (await r.json()) as TurnResponse;
-  } catch {
-    return null;
+    return await (kind === "ask" ? turn(text) : decide(kind satisfies Decision));
+  } catch (e) {
+    return e instanceof ClientError && e.body.error ? failedTurn(e.body.error) : null;
   }
 }
 
@@ -60,8 +61,9 @@ export interface ChatHandle {
 }
 
 /** One chip per changed table; a click jumps to that table's first change. Older turns' chips are plain text. */
-function Chips({ diff, onJump }: { diff: DiffEntry[] | null | undefined; onJump?: Jump }) {
-  const changes = turnChanges(diff), tables = Object.keys(changes); // changeChips keeps this order
+function Chips({ changes, onJump }: { changes: Record<string, TableChanges> | undefined; onJump?: Jump }) {
+  if (!changes) return null;
+  const tables = Object.keys(changes); // changeChips keeps this order
   const chips = changeChips(changes);
   if (!chips.length) return null;
   return (
@@ -114,7 +116,7 @@ function Seconds() {
   return <span aria-hidden> {n}s</span>;
 }
 
-function ErrorLine({ res, runtime, onRetry }: { res: TurnResponse | null; runtime: string; onRetry: () => void }) {
+function ErrorLine({ res, runtime, onRetry }: { res: Turn | null; runtime: string; onRetry: () => void }) {
   const error = res?.error ?? "";
   const text = turnError(runtime, res);
   return (
@@ -133,7 +135,7 @@ function ErrorLine({ res, runtime, onRetry }: { res: TurnResponse | null; runtim
  */
 export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, onLeave, rowLinks }: {
   ref: React.Ref<ChatHandle>; notice: string; nameOf: NameOf; runtime: string; disabled: boolean;
-  onTurn: (res: TurnResponse) => void; onJump: Jump; onLeave: () => void; rowLinks: (call: TraceCall) => RowLink[];
+  onTurn: (res: Turn) => void; onJump: Jump; onLeave: () => void; rowLinks: (call: TraceCall) => RowLink[];
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [draft, setDraft] = useState("");
@@ -187,7 +189,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
     if (kind === "ask" && text === draft) setDraft(""); // an example chip keeps the draft
     setStatus("Agent working…");
     setBusy(true);
-    const res = await postTurn(kind === "ask" ? { text } : { decision: kind });
+    const res = await postTurn(kind, text);
     if (!alive.current) return;
     setBusy(false);
     setStatus(turnSentence(kind, res));
@@ -259,7 +261,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
           {status}
           {busy && <Seconds />}
         </p>
-        {!open && !busy && <Chips diff={last?.res?.diff} onJump={jump} />}
+        {!open && !busy && <Chips changes={last?.res?.changes} onJump={jump} />}
       </div>
       <form
         className="flex items-end gap-2"
@@ -340,7 +342,7 @@ function Turn({ entry: e, next, isLast, live, busy, nameOf, runtime, cardRef, on
           {e.kind === "reject" && e.state === "done" && !r.diff?.length && <p className={block}>Okay, nothing was written.</p>}
           {rest.length > 0 && <div className={block}><Calls calls={rest} nameOf={nameOf} /></div>}
           {r.response && <div className={block}><Markdown text={r.response} /></div>}
-          {!r.pending && <Chips diff={r.diff} onJump={live ? onJump : undefined} />}
+          {!r.pending && <Chips changes={r.changes} onJump={live ? onJump : undefined} />}
           {blocked.length > 0 && (
             <div
               ref={isLast ? cardRef : undefined}

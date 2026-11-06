@@ -1,6 +1,6 @@
 // Display rules carried over from the old UI (DESIGN.md → Page hierarchy cell rules, Large tables → Filter).
 // Plain TypeScript, no React or DOM.
-import { compareKeys, type DiffEntry, type Row, type RowChange, type TableChanges, turnChanges } from "./changes.ts";
+import { compareKeys, type DiffEntry, type Row, type RowChange, type TableChanges } from "./changes.ts";
 
 const MONEY = new Intl.NumberFormat("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -181,6 +181,10 @@ export interface TurnResponse {
   runtime?: string;
   error?: string;
 }
+/** A Turn as the client hands it out: the reply plus its Turn changes, computed once (`lib/client.ts`). */
+export interface Turn extends TurnResponse {
+  changes: Record<string, TableChanges>;
+}
 export type TurnKind = "ask" | "approve" | "reject";
 export type Decision = Exclude<TurnKind, "ask">;
 export const isFailedTurn = (r: TurnResponse | null) => !r || (!!r.error && !r.response);
@@ -207,9 +211,9 @@ export const changeNote = (c: RowChange) =>
 /** The status line when the API doesn't answer, a turn or the page load. */
 export const API_DOWN = "Can't reach the API.";
 
-export function turnSentence(kind: TurnKind, r: TurnResponse | null): string {
+export function turnSentence(kind: TurnKind, r: Turn | null): string {
   if (!r) return API_DOWN;
-  const written = Object.entries(turnChanges(r.diff)).map(([t, { counts }]) => {
+  const written = Object.entries(r.changes).map(([t, { counts }]) => {
     const parts = (["insert", "update", "delete"] as const).filter((op) => counts[op]).map((op) => `${counts[op]} ${WORDS[op]}`);
     return `${labelFor(t)}: ${parts.join(", ")}.`;
   });
@@ -221,7 +225,7 @@ export function turnSentence(kind: TurnKind, r: TurnResponse | null): string {
 }
 
 /** A failed turn's inline error (DESIGN.md → States): Ollama down gets its own advice. */
-export function turnError(runtime: string, r: TurnResponse | null): string {
+export function turnError(runtime: string, r: Turn | null): string {
   if (r && runtime === "ollama" && /ollama|connect|refused/i.test(r.error ?? "")) {
     return "Start Ollama, then retry, or switch the runtime to Claude (paid).";
   }

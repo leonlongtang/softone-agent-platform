@@ -5,8 +5,9 @@ import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
   applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, jumpTarget, labelFor, matches, nameIndex, nextSort, pendingArgs, rowLinks, statusToken, stepChange, turnError, turnSentence,
-  type Sort, type TraceCall,
+  type Sort, type TraceCall, type Turn, type TurnResponse,
 } from "./format.ts";
+import { ClientError, decide, info, turn } from "./client.ts";
 
 const keys = { orders: ["id"], order_items: ["order_id", "product_id"] };
 
@@ -134,22 +135,23 @@ test("table view: filter on displayed text, sort cycles, FKs by id", () => {
 test("the status line's sentence after a turn (DESIGN.md → Accessibility → Announcements)", () => {
   const ins = (table: string, id: number): DiffEntry => ({ table, op: "insert", key: [id], before: null, after: {}, changed: [] });
   const upd = (table: string, id: number): DiffEntry => ({ table, op: "update", key: [id], before: {}, after: {}, changed: ["price"] });
-  const ok = { response: "done", trace: [], pending: false, diff: [] };
-  assert.equal(turnSentence("ask", ok), "Answer ready.");
-  assert.equal(turnSentence("ask", { ...ok, pending: true }), "");
-  assert.equal(turnSentence("reject", ok), "Rejected. Nothing was written.");
+  const ok: TurnResponse = { response: "done", trace: [], pending: false, diff: [] };
+  const t = (r: TurnResponse): Turn => ({ ...r, changes: turnChanges(r.diff) }); // as lib/client.ts hands it out
+  assert.equal(turnSentence("ask", t(ok)), "Answer ready.");
+  assert.equal(turnSentence("ask", t({ ...ok, pending: true })), "");
+  assert.equal(turnSentence("reject", t(ok)), "Rejected. Nothing was written.");
   assert.equal(
-    turnSentence("approve", { ...ok, diff: [ins("orders", 5006), upd("items", 1), upd("items", 2)] }),
+    turnSentence("approve", t({ ...ok, diff: [ins("orders", 5006), upd("items", 1), upd("items", 2)] })),
     "Written. Orders: 1 added. Items: 2 changed. Press ] to go to the changes.",
   );
-  assert.equal(turnSentence("ask", { ...ok, response: "", error: "Boom" }), "The turn failed. Nothing was written.");
-  assert.equal(turnSentence("ask", { ...ok, response: "", error: "Boom", diff: [ins("orders", 5006)] }),
+  assert.equal(turnSentence("ask", t({ ...ok, response: "", error: "Boom" })), "The turn failed. Nothing was written.");
+  assert.equal(turnSentence("ask", t({ ...ok, response: "", error: "Boom", diff: [ins("orders", 5006)] })),
     "The turn failed. Written. Orders: 1 added.");
   assert.equal(turnSentence("ask", null), "Can't reach the API.");
 
   const down = { ...ok, response: "", error: "ConnectError: All connection attempts failed" };
-  assert.equal(turnError("ollama", down), "Start Ollama, then retry, or switch the runtime to Claude (paid).");
-  assert.equal(turnError("claude", down), "The turn failed. Nothing was written.");
+  assert.equal(turnError("ollama", t(down)), "Start Ollama, then retry, or switch the runtime to Claude (paid).");
+  assert.equal(turnError("claude", t(down)), "The turn failed. Nothing was written.");
   assert.equal(turnError("ollama", null), "Can't reach the API.");
 });
 
@@ -211,4 +213,34 @@ test("row links: existing rows a blocked call names, none for creates", () => {
   assert.deepEqual(rowLinks(call("create_order", { customer_id: 47, items: [{ item_id: 42, qty: 1 }] }), db, keys), []);
   assert.deepEqual(rowLinks(call("update_item", { name_or_id: "Laptop" }), db, keys), []); // a name, not a key
   assert.deepEqual(rowLinks(call("cancel_order", { order_id: 9999 }), db, keys), []); // no such row
+});
+
+/** Answers every fetch with `status` and `body`, recording what was sent. */
+function stubFetch(status: number, body: unknown) {
+  const sent: { url: string; init?: RequestInit }[] = [];
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    sent.push({ url, init });
+    return new Response(JSON.stringify(body), { status });
+  }) as typeof fetch;
+  return sent;
+}
+
+test("client: a Turn posts its text and comes back with its changes computed", async () => {
+  const diff: DiffEntry[] = [{ table: "orders", op: "insert", key: [5006], before: null, after: { id: 5006 }, changed: ["id"] }];
+  const sent = stubFetch(200, { response: "done", trace: [], pending: false, diff });
+  const res = await turn("hi");
+  assert.equal(sent[0].url, "/api/turn");
+  assert.deepEqual(JSON.parse(String(sent[0].init?.body)), { text: "hi" });
+  assert.deepEqual(res.changes, turnChanges(diff));
+
+  stubFetch(200, { response: "", trace: [], pending: false, diff: null });
+  assert.deepEqual((await decide("reject")).changes, {});
+});
+
+test("client: a non-2xx answer throws ClientError with the server's error", async () => {
+  stubFetch(409, { error: "Nothing is waiting for approval." });
+  await assert.rejects(decide("approve"), (e) =>
+    e instanceof ClientError && e.status === 409 && e.message === "Nothing is waiting for approval.");
+  stubFetch(500, "oops");
+  await assert.rejects(info(), (e) => e instanceof ClientError && e.status === 500);
 });
