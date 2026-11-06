@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
-  applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, nextSort, pendingArgs, statusToken, turnError, turnSentence,
+  applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, jumpTarget, labelFor, matches, nameIndex, nextSort, pendingArgs, rowLinks, statusToken, turnError, turnSentence,
   type Sort, type TraceCall,
 } from "./format.ts";
 
@@ -166,4 +166,32 @@ test("change chips and the row's hidden change text", () => {
   assert.equal(changeNote({ op: "update", changed: ["price", "due_date"] }), "changed: price, due date");
   assert.equal(changeNote({ op: "insert", changed: ["id"] }), "added");
   assert.equal(changeNote({ op: "delete", changed: [] }), "deleted");
+});
+
+test("a chip or row-link jump: where it lands and what it says", () => {
+  const diff: DiffEntry[] = [
+    { table: "orders", op: "insert", key: [5006], before: null, after: null, changed: [] },
+    { table: "items", op: "update", key: [1002], before: null, after: null, changed: ["price"] },
+    { table: "items", op: "update", key: [1003], before: null, after: null, changed: ["stock"] },
+  ];
+  const changes = turnChanges(diff);
+  const items = tableRows([{ id: 1003 }, { id: 1001 }, { id: 1002 }], ["id"], changes.items);
+  // A chip: the table's first change in key order, counted across tables in chip order.
+  assert.deepEqual(jumpTarget(items, "items", ["id"], changes), { index: 1, sentence: "Items, row 2: changed price. Change 2 of 3." });
+  // A row link: that row, no change count.
+  assert.deepEqual(jumpTarget(items, "items", ["id"], changes, [1003]), { index: 2, sentence: "Items, row 3." });
+  assert.equal(jumpTarget(items, "items", ["id"], changes, [9999]), null);
+  assert.equal(jumpTarget(tableRows([{ id: 1 }], ["id"], undefined), "items", ["id"], {}), null);
+});
+
+test("row links: existing rows a blocked call names, none for creates", () => {
+  const db = { items: [{ id: 42 }], orders: [{ id: 5001 }], customers: [{ trdr: 47 }] };
+  const keys = { items: ["id"], orders: ["id"], customers: ["trdr"], order_items: ["order_id", "product_id"] };
+  const call = (tool: string, args: Record<string, unknown>): TraceCall => ({ tool, args, status: "blocked" });
+  assert.deepEqual(rowLinks(call("update_item", { name_or_id: "42", price: 3 }), db, keys), [{ table: "items", key: [42], label: "Items #42" }]);
+  assert.deepEqual(rowLinks(call("delete_customer", { name_or_id: 47 }), db, keys).map((l) => l.label), ["Customers #47"]);
+  assert.deepEqual(rowLinks(call("add_order_line", { order_id: 5001, item_id: 42, quantity: 1 }), db, keys).map((l) => l.label), ["Orders #5001"]);
+  assert.deepEqual(rowLinks(call("create_order", { customer_id: 47, items: [{ item_id: 42, qty: 1 }] }), db, keys), []);
+  assert.deepEqual(rowLinks(call("update_item", { name_or_id: "Laptop" }), db, keys), []); // a name, not a key
+  assert.deepEqual(rowLinks(call("cancel_order", { order_id: 9999 }), db, keys), []); // no such row
 });

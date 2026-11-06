@@ -224,3 +224,41 @@ export function turnError(runtime: string, r: TurnResponse | null): string {
   }
   return turnSentence("ask", r);
 }
+
+/**
+ * Where a jump lands (DESIGN.md → What changed → Jumping) and what the status line says. `items` is the table in
+ * key order with its changes (`tableRows`): a chip jump resets the view, so the index is the rendered row too.
+ * No `key`: a chip, the table's first change. A `key`: a row link. Null when there's no such row.
+ */
+export function jumpTarget(
+  items: { row: Row; change?: RowChange }[], table: string, pk: string[], changes: Record<string, TableChanges>, key?: unknown[],
+): { index: number; sentence: string } | null {
+  const index = key ? items.findIndex((i) => compareKeys(pk.map((k) => i.row[k]), key) === 0) : items.findIndex((i) => i.change);
+  if (index < 0) return null;
+  const where = `${labelFor(table)}, row ${index + 1}`, change = items[index].change;
+  if (key || !change) return { index, sentence: `${where}.` };
+  const tables = Object.keys(changes), count = (ts: string[]) => ts.reduce((n, t) => n + changes[t].counts.total, 0);
+  const nth = count(tables.slice(0, tables.indexOf(table))) + 1;
+  return { index, sentence: `${where}: ${changeNote(change).replace(":", "")}. Change ${nth} of ${count(tables)}.` };
+}
+
+/** A link on the approval card to an existing row the blocked call names, e.g. `Items #42`. */
+export interface RowLink { table: string; key: unknown[]; label: string }
+
+// Args that name the row a write acts on (FOREIGN args like `customer_id` only reference another row).
+const TARGET_ARGS: Record<string, string> = { order_id: "orders", invoice_id: "invoices_business", payment_id: "payments" };
+
+/** Row links for a blocked call (DESIGN.md → Pending-write preview): only rows that exist, so creates get none. */
+export function rowLinks(t: TraceCall, db: Record<string, Row[]>, keys: Record<string, string[]>): RowLink[] {
+  // ponytail: tool-name heuristics (prefixes, "customer" in the name); a new write tool may need a case here.
+  if (/^(create|record|workflow)_/.test(t.tool)) return []; // these make a new row; their ids only reference others
+  const out: RowLink[] = [];
+  for (const [arg, v] of Object.entries(t.args ?? {})) {
+    const table = arg === "name_or_id" ? (t.tool.includes("customer") ? "customers" : "items") : TARGET_ARGS[arg];
+    const pk = keys[table];
+    if (!table || pk?.length !== 1 || v == null) continue;
+    const row = db[table]?.find((r) => String(r[pk[0]]) === String(v)); // name_or_id may be a name: no match
+    if (row) out.push({ table, key: [row[pk[0]]], label: `${labelFor(table)} #${row[pk[0]]}` });
+  }
+  return out;
+}

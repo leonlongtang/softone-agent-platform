@@ -5,8 +5,8 @@ import { marked } from "marked";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type DiffEntry, turnChanges } from "@/lib/changes";
 import {
-  changeChips, type Decision, foldReads, formatArgs, isFailedTurn, isGreek, labelFor, type NameOf, pendingArgs, TRACE_BADGE,
-  type TraceCall, turnError, type TurnKind, type TurnResponse, turnSentence,
+  changeChips, type Decision, foldReads, formatArgs, isFailedTurn, isGreek, labelFor, type NameOf, pendingArgs, type RowLink,
+  TRACE_BADGE, type TraceCall, turnError, type TurnKind, type TurnResponse, turnSentence,
 } from "@/lib/format";
 
 // Example prompts use the original seed rows, which the operator-scale seed keeps (DESIGN.md → Demo data).
@@ -45,14 +45,27 @@ async function postTurn(text: string): Promise<TurnResponse | null> {
   }
 }
 
-/** Display only for now; ticket 08 makes each chip jump to its table's first change. */
-function Chips({ diff }: { diff: DiffEntry[] | null | undefined }) {
-  const chips = changeChips(turnChanges(diff));
+/** A jump to a table's first change or to a named row; returns the status line's sentence ("" if nothing to jump to). */
+type Jump = (table: string, key?: unknown[]) => string;
+
+/** One chip per changed table; a click jumps to that table's first change. Older turns' chips are plain text. */
+function Chips({ diff, onJump }: { diff: DiffEntry[] | null | undefined; onJump?: Jump }) {
+  const changes = turnChanges(diff), tables = Object.keys(changes); // changeChips keeps this order
+  const chips = changeChips(changes);
   if (!chips.length) return null;
   return (
     <ul aria-label="Changes this turn" className="flex flex-wrap gap-1.5">
-      {chips.map((c) => (
-        <li key={c} className="rounded-full border border-line bg-raised px-2.5 py-0.5 text-sm tabular-nums">{c}</li>
+      {chips.map((c, i) => (
+        <li key={c}>
+          <button
+            type="button"
+            disabled={!onJump} // its changes have expired (DESIGN.md → What changed → Lifetime)
+            onClick={() => onJump?.(tables[i])}
+            className="rounded-full border border-line bg-raised px-2.5 py-0.5 text-sm tabular-nums enabled:hover:border-primary focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            {c}
+          </button>
+        </li>
       ))}
     </ul>
   );
@@ -105,8 +118,9 @@ function ErrorLine({ res, runtime, onRetry }: { res: TurnResponse | null; runtim
  * The floating chat over the table (DESIGN.md → Floating chat, A turn in the log): clear glass frame,
  * solid text blocks, the turn loop against `POST /api/turn`, and the one `role="status"` line.
  */
-export function Chat({ nameOf, runtime, disabled, onTurn }: {
+export function Chat({ nameOf, runtime, disabled, onTurn, onJump, rowLinks }: {
   nameOf: NameOf; runtime: string; disabled: boolean; onTurn: (res: TurnResponse) => void;
+  onJump: Jump; rowLinks: (call: TraceCall) => RowLink[];
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [draft, setDraft] = useState("");
@@ -124,6 +138,7 @@ export function Chat({ nameOf, runtime, disabled, onTurn }: {
   // reply that never got an answer may have left the write waiting, so only a decided turn unlocks.
   const waiting = !!last?.res?.pending || (last?.state === "failed" && last.kind !== "ask" && !last.res);
   const turns = entries.filter((e) => e.kind === "ask").length;
+  const liveId = entries.findLast((e) => e.res)?.id; // its diff is the workspace's turn changes
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -131,6 +146,16 @@ export function Chat({ nameOf, runtime, disabled, onTurn }: {
     focusNext.current = null;
     if (target && !isCoarse()) target.focus();
   }, [entries]);
+
+  // A chip or row link: the workspace moves the table and focus; the chat folds and says where it landed.
+  const jump: Jump = (table, key) => {
+    const sentence = onJump(table, key);
+    if (sentence) {
+      setStatus(sentence);
+      setOpen(false);
+    }
+    return sentence;
+  };
 
   async function send(kind: TurnKind, text: string, replace?: number) {
     if (busy || !text.trim()) return;
@@ -182,10 +207,13 @@ export function Chat({ nameOf, runtime, disabled, onTurn }: {
               entry={e}
               next={entries[i + 1]}
               isLast={i === entries.length - 1}
+              live={e.id === liveId}
               busy={busy}
               nameOf={nameOf}
               runtime={runtime}
               cardRef={cardRef}
+              onJump={jump}
+              rowLinks={rowLinks}
               onDecide={(k) => send(k, REPLY[k])}
               onRetry={() => send(e.kind, e.text, e.id)}
             />
@@ -197,7 +225,7 @@ export function Chat({ nameOf, runtime, disabled, onTurn }: {
           {status}
           {busy && <Seconds />}
         </p>
-        {!open && !busy && <Chips diff={last?.res?.diff} />}
+        {!open && !busy && <Chips diff={last?.res?.diff} onJump={jump} />}
       </div>
       <form
         className="flex items-end gap-2"
@@ -208,7 +236,7 @@ export function Chat({ nameOf, runtime, disabled, onTurn }: {
       >
         <button
           type="button"
-          disabled={waiting}
+          disabled={waiting && open} // a row link can fold it mid-approval; it can always reopen
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           className="h-8 shrink-0 rounded-sm bg-raised px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
@@ -243,9 +271,10 @@ export function Chat({ nameOf, runtime, disabled, onTurn }: {
   );
 }
 
-function Turn({ entry: e, next, isLast, busy, nameOf, runtime, cardRef, onDecide, onRetry }: {
-  entry: Entry; next?: Entry; isLast: boolean; busy: boolean; nameOf: NameOf; runtime: string;
+function Turn({ entry: e, next, isLast, live, busy, nameOf, runtime, cardRef, onDecide, onRetry, onJump, rowLinks }: {
+  entry: Entry; next?: Entry; isLast: boolean; live: boolean; busy: boolean; nameOf: NameOf; runtime: string;
   cardRef: React.RefObject<HTMLDivElement | null>; onDecide: (k: Decision) => void; onRetry: () => void;
+  onJump: Jump; rowLinks: (call: TraceCall) => RowLink[];
 }) {
   const r = e.res;
   const { reads, rest } = r ? foldReads(r.trace, r.pending) : { reads: [], rest: [] };
@@ -271,7 +300,7 @@ function Turn({ entry: e, next, isLast, busy, nameOf, runtime, cardRef, onDecide
           {e.kind === "reject" && e.state === "done" && !r.diff?.length && <p className={block}>Okay, nothing was written.</p>}
           {rest.length > 0 && <div className={block}><Calls calls={rest} nameOf={nameOf} /></div>}
           {r.response && <div className={block}><Markdown text={r.response} /></div>}
-          {!r.pending && <Chips diff={r.diff} />}
+          {!r.pending && <Chips diff={r.diff} onJump={live ? onJump : undefined} />}
           {blocked.length > 0 && (
             <div
               ref={isLast ? cardRef : undefined}
@@ -294,6 +323,16 @@ function Turn({ entry: e, next, isLast, busy, nameOf, runtime, cardRef, onDecide
                       </div>
                     ))}
                   </dl>
+                  {rowLinks(t).map((l) => (
+                    <button
+                      key={l.label}
+                      type="button"
+                      onClick={() => onJump(l.table, l.key)}
+                      className="mt-1 mr-3 text-accent-text underline underline-offset-2 hover:no-underline focus-visible:outline-2 focus-visible:outline-ring"
+                    >
+                      {l.label}
+                    </button>
+                  ))}
                 </div>
               ))}
               <Verdict next={next} busy={busy} onDecide={onDecide} />

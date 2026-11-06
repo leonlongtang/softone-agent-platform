@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Chat } from "@/components/chat";
 import { DataTable } from "@/components/data-table";
 import { type Row, type TableChanges, tableRows, turnChanges } from "@/lib/changes";
-import { applyView, DEFAULT_VIEW, labelFor, nameIndex, nextSort, type TurnResponse, type View } from "@/lib/format";
+import {
+  applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, type TraceCall, type TurnResponse, type View,
+} from "@/lib/format";
 
 const TABLES = ["customers", "items", "orders", "order_items", "invoices_business", "payments"];
 
@@ -42,7 +44,7 @@ function Notice({ children }: { children: React.ReactNode }) {
 export function Workspace() {
   const [state, setState] = useState<State>({ status: "loading" });
   const [table, setTable] = useState("orders");
-  // Per table, for the session. Ticket 08's chip jump resets its target with setView(t, DEFAULT_VIEW).
+  // Per table, for the session; a jump resets its target to DEFAULT_VIEW.
   const [views, setViews] = useState<Record<string, View>>({});
   const view = views[table] ?? DEFAULT_VIEW;
   const setView = (t: string, v: View) => setViews((all) => ({ ...all, [t]: v }));
@@ -84,6 +86,19 @@ export function Workspace() {
     return changedOnly ? all.filter((i) => i.change) : all;
   }, [rows, pk, tableChanges, changedOnly]);
   const shown = useMemo(() => applyView(items, view, nameOf), [items, view, nameOf]);
+  // A chip or row link (DESIGN.md → What changed → Jumping). `seq` makes a repeat click on the same row jump again.
+  const [jumpTo, setJumpTo] = useState<{ table: string; index: number; seq: number } | null>(null);
+  const jumps = useRef(0);
+  function jump(t: string, key?: unknown[]): string {
+    const j = db?.[t] && jumpTarget(tableRows(db[t], keys[t] ?? [], changes[t]), t, keys[t] ?? [], changes, key);
+    if (!j) return "";
+    setTable(t);
+    setView(t, DEFAULT_VIEW);
+    setOnlyChanged(false);
+    setJumpTo({ table: t, index: j.index, seq: ++jumps.current });
+    return j.sentence;
+  }
+  const linksFor = (call: TraceCall) => (db ? rowLinks(call, db, keys) : []);
   const changedIn = (t: string) => changes[t]?.counts.total ?? 0;
   const count = (t: string) => (db ? (db[t]?.length ?? 0).toLocaleString("en-GB") : "—");
   const runtime = state.status === "ok" ? (state.info.runtime === "claude" ? "Claude" : "Ollama") : "…";
@@ -107,7 +122,7 @@ export function Workspace() {
                 <button
                   type="button"
                   aria-current={t === table ? "true" : undefined}
-                  onClick={() => setTable(t)}
+                  onClick={() => { setTable(t); setJumpTo(null); }} // a remount must not replay the last jump
                   className="flex h-8 w-full items-center rounded-sm px-2 text-left hover:bg-raised aria-[current]:bg-accent-soft aria-[current]:text-accent-text focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   {labelFor(t)}
@@ -180,11 +195,13 @@ export function Workspace() {
                 sort={view.sort}
                 onSort={(c) => setView(table, { ...view, sort: nextSort(view.sort, c) })}
                 changed={changedIn(table)}
+                jump={jumpTo?.table === table ? jumpTo : undefined}
               />
             )}
           </div>
           {/* Last in the DOM, though it floats on top (DESIGN.md → Keyboard → Focus). */}
-          <Chat nameOf={nameOf} runtime={state.status === "ok" ? state.info.runtime : ""} disabled={state.status !== "ok"} onTurn={onTurn} />
+          <Chat nameOf={nameOf} runtime={state.status === "ok" ? state.info.runtime : ""} disabled={state.status !== "ok"} onTurn={onTurn}
+            onJump={jump} rowLinks={linksFor} />
         </main>
       </div>
     </div>

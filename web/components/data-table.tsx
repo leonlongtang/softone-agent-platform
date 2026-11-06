@@ -2,20 +2,24 @@
 
 import { type ColumnDef, tableFeatures, useTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Row, RowChange } from "@/lib/changes";
 import { cellKind, cellText, changeMark, changeNote, isGreek, labelFor, type NameOf, type Sort, statusToken } from "@/lib/format";
 
 type Item = { row: Row; change?: RowChange };
 
 const features = tableFeatures({});
-const ROW = 32, GUTTER = 28; // ROW mirrors --row: the virtualizer needs a number
+const ROW = 32, GUTTER = 28; // ROW mirrors --row (rows use it, not h-8: rem is 14px here); the virtualizer needs a number
 const alignRight = (column: string) => ["money", "int"].includes(cellKind(column));
 const PILL = { ok: "text-ok", warn: "text-warn", bad: "text-bad" } as const;
 // Turn changes (DESIGN.md → What changed): inserted rows tinted ok, deleted struck through on bad, updated rows
 // tint only their changed cells. Tints are opaque, so pinned cells take them instead of --panel.
 const TINT = { insert: "bg-ok-soft", update: "", delete: "bg-bad-soft" } as const;
 const MARK_TONE = { insert: "text-ok", update: "text-warn", delete: "text-bad" } as const;
+// A jump's --accent outline (DESIGN.md → What changed → Jumping), drawn on the cells: pinned cells cover a row outline.
+const FLASH = "group-data-[flash]:shadow-[inset_0_2px_var(--accent),inset_0_-2px_var(--accent)]";
+const FLASH_FIRST = "group-data-[flash]:shadow-[inset_2px_0_var(--accent),inset_0_2px_var(--accent),inset_0_-2px_var(--accent)]";
+const FLASH_LAST = "group-data-[flash]:last:shadow-[inset_-2px_0_var(--accent),inset_0_2px_var(--accent),inset_0_-2px_var(--accent)]";
 
 // ponytail: column widths from the longest displayed text × an average glyph width, not measured.
 // Fixed widths keep columns still while rows scroll in and out; measure with canvas if they clip badly.
@@ -51,9 +55,10 @@ function Cell({ column, value, nameOf }: { column: string; value: unknown; nameO
  * One table, read-only: sticky header, gutter and key columns pinned left, only on-screen rows in the DOM.
  * `rows` is the whole table (column widths); `items` is what shows, already filtered and sorted.
  */
-export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, changed }: {
+export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, changed, jump }: {
   name: string; rows: Row[]; items: Item[]; pk: string[]; nameOf: NameOf; sort: Sort; onSort: (column: string) => void;
   changed: number; // rows this turn changed in the whole table
+  jump?: { index: number; seq: number }; // a chip or row link landed here: index into `items`
 }) {
   const columns = useMemo(() => {
     const keys = Object.keys(rows[0] ?? Object.fromEntries(pk.map((k) => [k, null])));
@@ -78,6 +83,19 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
     estimateSize: () => ROW,
     overscan: 10,
   });
+  // A jump: the row a third of the way down, instantly (smooth scrolling renders blank rows), focus on the table,
+  // and an --accent outline for 1.6s (DESIGN.md → Motion; ticket 13 makes it fade).
+  const [flash, setFlash] = useState<string | null>(null);
+  const seq = jump?.seq;
+  useEffect(() => {
+    const el = scrollRef.current, id = jump && tableRowsModel[jump.index]?.id;
+    if (!el || !id) return;
+    virtualizer.scrollToOffset(Math.max(0, ROW + jump.index * ROW - el.clientHeight / 3)); // ROW: the header
+    el.focus({ preventScroll: true });
+    setFlash(id); // the flash starts with the jump
+    const t = setTimeout(() => setFlash(null), 1600); // --flash-hold + --flash-fade (tokens.css)
+    return () => clearTimeout(t);
+  }, [seq]); // eslint-disable-line react-hooks/exhaustive-deps -- once per jump, not on each render
   const items = virtualizer.getVirtualItems();
   const top = items[0]?.start ?? 0;
   const bottom = virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0);
@@ -105,7 +123,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
         </colgroup>
         <thead>
           <tr aria-rowindex={1}>
-            <th aria-hidden className="sticky top-0 left-0 z-30 h-8 border-b border-line bg-panel" />
+            <th aria-hidden className="sticky top-0 left-0 z-30 h-(--row) border-b border-line bg-panel" />
             {table.getHeaderGroups()[0].headers.map((h, i) => {
               const p = columns[i].meta.pinned;
               const dir = sort?.column === h.id ? (sort.desc ? "descending" : "ascending") : undefined;
@@ -114,7 +132,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
                   key={h.id}
                   style={pinStyle(p)}
                   aria-sort={dir}
-                  className={`sticky top-0 h-8 border-b border-line bg-panel p-0 text-xs font-medium tracking-[.04em] text-muted-foreground uppercase ${p === undefined ? "z-10" : "z-30"} ${alignRight(h.id) ? "text-right" : "text-left"}`}
+                  className={`sticky top-0 h-(--row) border-b border-line bg-panel p-0 text-xs font-medium tracking-[.04em] text-muted-foreground uppercase ${p === undefined ? "z-10" : "z-30"} ${alignRight(h.id) ? "text-right" : "text-left"}`}
                 >
                   <button
                     type="button"
@@ -135,8 +153,14 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
             const row = tableRowsModel[v.index];
             const change = row.original.change, tint = change ? TINT[change.op] : "";
             return (
-              <tr key={row.id} aria-rowindex={v.index + 2} data-change={change?.op} className="h-8">
-                <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>
+              <tr
+                key={row.id}
+                aria-rowindex={v.index + 2}
+                data-change={change?.op}
+                data-flash={flash === row.id || undefined}
+                className="group h-(--row)"
+              >
+                <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${FLASH_FIRST} ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>
                   {change && <><span aria-hidden>{changeMark(change)}</span><span className="sr-only">{changeNote(change)}</span></>}
                 </td>
                 {row.getAllCells().map((cell, i) => {
@@ -148,7 +172,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
                       key={cell.id}
                       lang={isGreek(text) ? "el" : undefined}
                       style={pinStyle(p)}
-                      className={`truncate border-b border-line px-3 ${p === undefined ? "" : "z-20"} ${bg} ${change?.op === "delete" ? "line-through" : ""} ${alignRight(k) ? "text-right" : ""}`}
+                      className={`truncate border-b border-line px-3 ${FLASH} ${FLASH_LAST} ${p === undefined ? "" : "z-20"} ${bg} ${change?.op === "delete" ? "line-through" : ""} ${alignRight(k) ? "text-right" : ""}`}
                     >
                       <Cell column={k} value={value} nameOf={nameOf} />
                     </td>
