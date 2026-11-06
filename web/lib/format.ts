@@ -1,6 +1,6 @@
 // Display rules carried over from the old UI (DESIGN.md → Page hierarchy cell rules, Large tables → Filter).
 // Plain TypeScript, no React or DOM.
-import type { Row } from "./changes.ts";
+import { compareKeys, type Row } from "./changes.ts";
 
 const MONEY = new Intl.NumberFormat("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -143,4 +143,30 @@ export function cellText(column: string, value: unknown, nameOf: NameOf): string
   if (kind === "money" && typeof value === "number") return formatMoney(value);
   if (kind === "date") return formatDate(String(value));
   return withName(nameOf, column, value);
+}
+
+/** One column's sort; null is key order (DESIGN.md → Large tables → Sort). */
+export type Sort = { column: string; desc: boolean } | null;
+/** A table's filter and sort, kept per table for the session. */
+export interface View { filter: string; sort: Sort }
+/** Key order, no filter: the default, and what a chip jump resets to. */
+export const DEFAULT_VIEW: View = { filter: "", sort: null };
+
+/** A header click: ascending → descending → key order; another column starts ascending. */
+export const nextSort = (s: Sort, column: string): Sort =>
+  s?.column !== column ? { column, desc: false } : s.desc ? null : { column, desc: true };
+
+// ponytail: formats every cell on each filter keystroke; cache normalised row text if it lags near ~50k rows.
+/**
+ * Rows (already in key order) filtered on their displayed text across every column, then sorted by raw value,
+ * so foreign keys sort by id. Ties keep key order.
+ */
+export function applyView<T extends { row: Row }>(items: T[], view: View, nameOf: NameOf): T[] {
+  const q = view.filter.trim();
+  const out = q
+    ? items.filter((i) => Object.keys(i.row).some((k) => matches(cellText(k, i.row[k], nameOf), q)))
+    : [...items];
+  const s = view.sort;
+  if (s) out.sort((a, b) => compareKeys([a.row[s.column]], [b.row[s.column]]) * (s.desc ? -1 : 1));
+  return out;
 }

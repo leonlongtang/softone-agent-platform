@@ -46,7 +46,8 @@ export function turnChanges(diff: DiffEntry[] | null | undefined): Record<string
   return out;
 }
 
-function compareKeys(a: unknown[], b: unknown[]): number {
+/** Key order: element by element, nulls first, numbers numerically. */
+export function compareKeys(a: unknown[], b: unknown[]): number {
   for (let i = 0; i < a.length; i++) {
     const x = a[i], y = b[i];
     if (x === y) continue;

@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table";
-import type { Row } from "@/lib/changes";
-import { labelFor, nameIndex } from "@/lib/format";
+import { type Row, tableRows } from "@/lib/changes";
+import { applyView, DEFAULT_VIEW, labelFor, nameIndex, nextSort, type View } from "@/lib/format";
 
 const TABLES = ["customers", "items", "orders", "order_items", "invoices_business", "payments"];
 
@@ -41,6 +41,10 @@ function Notice({ children }: { children: React.ReactNode }) {
 export function Workspace() {
   const [state, setState] = useState<State>({ status: "loading" });
   const [table, setTable] = useState("orders");
+  // Per table, for the session. Ticket 08's chip jump resets its target with setView(t, DEFAULT_VIEW).
+  const [views, setViews] = useState<Record<string, View>>({});
+  const view = views[table] ?? DEFAULT_VIEW;
+  const setView = (t: string, v: View) => setViews((all) => ({ ...all, [t]: v }));
   useEffect(() => {
     load().then(setState);
   }, []);
@@ -52,6 +56,9 @@ export function Workspace() {
   const db = state.status === "ok" ? state.db : null;
   const keys = state.status === "ok" ? state.info.keys : {};
   const nameOf = useMemo(() => nameIndex(db ?? {}), [db]);
+  const rows = db?.[table], pk = keys[table];
+  const items = useMemo(() => (rows ? tableRows(rows, pk ?? [], undefined) : []), [rows, pk]);
+  const shown = useMemo(() => applyView(items, view, nameOf), [items, view, nameOf]);
   const count = (t: string) => (db ? (db[t]?.length ?? 0).toLocaleString("en-GB") : "—");
   const runtime = state.status === "ok" ? (state.info.runtime === "claude" ? "Claude" : "Ollama") : "…";
 
@@ -88,7 +95,19 @@ export function Workspace() {
           <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
             <h1 className="text-lg font-semibold">{labelFor(table)}</h1>
             <span className="font-mono text-sm text-muted-foreground" translate="no">{table}</span>
-            <span className="text-muted-foreground">{count(table)} rows</span>
+            <span className="text-muted-foreground">
+              {db && view.filter.trim() ? `${shown.length.toLocaleString("en-GB")} of ` : ""}
+              {count(table)} rows
+            </span>
+            <input
+              type="search"
+              aria-label={`Filter ${labelFor(table)}`}
+              placeholder="Filter"
+              value={view.filter}
+              disabled={!db}
+              onChange={(e) => setView(table, { ...view, filter: e.target.value })}
+              className="ml-auto h-8 w-60 rounded-sm border border-line bg-bg px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+            />
           </div>
           <div className="min-h-0 flex-1">
             {state.status === "loading" && <Notice><p className="text-muted-foreground">Loading…</p></Notice>}
@@ -113,7 +132,16 @@ export function Workspace() {
               </Notice>
             )}
             {db && (
-              <DataTable key={table} name={table} rows={db[table] ?? []} pk={keys[table] ?? []} nameOf={nameOf} />
+              <DataTable
+                key={table}
+                name={table}
+                rows={rows ?? []}
+                items={shown}
+                pk={pk ?? []}
+                nameOf={nameOf}
+                sort={view.sort}
+                onSort={(c) => setView(table, { ...view, sort: nextSort(view.sort, c) })}
+              />
             )}
           </div>
         </main>

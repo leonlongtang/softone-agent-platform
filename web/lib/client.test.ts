@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
-  cellKind, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, pendingArgs, statusToken,
-  type TraceCall,
+  applyView, cellKind, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, nextSort, pendingArgs, statusToken,
+  type Sort, type TraceCall,
 } from "./format.ts";
 
 const keys = { orders: ["id"], order_items: ["order_id", "product_id"] };
@@ -101,4 +101,32 @@ test("cell rules: kind and displayed text", () => {
   assert.equal(cellText("customer_id", 47, nameOf), "47 · Soft One Technologies S.A.");
   assert.equal(cellText("customer_id", 999, nameOf), "999");
   assert.equal(cellText("address", null, nameOf), "—");
+});
+
+test("table view: filter on displayed text, sort cycles, FKs by id", () => {
+  const nameOf = nameIndex({ customers: [{ trdr: 47, name: "Αλφα ΑΕ" }, { trdr: 3, name: "Zeta Ltd" }] });
+  const items = [
+    { row: { id: 1, customer_id: 47, total: 1225, status: "Draft", name: "Παπαδόπουλος" } },
+    { row: { id: 2, customer_id: 3, total: 10, status: "Confirmed", name: "Smith" } },
+    { row: { id: 3, customer_id: null, total: 500, status: "Confirmed", name: "Jones" } },
+  ];
+  const ids = (sort: Sort, filter = "") =>
+    applyView(items, { filter, sort }, nameOf).map((i) => i.row.id);
+  assert.deepEqual(ids(null, "1.225,00"), [1]);
+  assert.deepEqual(ids(null, "zeta"), [2]);
+  assert.deepEqual(ids(null, "confirmed"), [2, 3]);
+  assert.deepEqual(ids(null, "παπαδοπουλος"), [1]);
+  assert.deepEqual(ids(null, "  "), [1, 2, 3]);
+
+  // asc → desc → key order, one column at a time
+  const asc = nextSort(null, "total");
+  assert.deepEqual(asc, { column: "total", desc: false });
+  assert.deepEqual(nextSort(asc, "total"), { column: "total", desc: true });
+  assert.equal(nextSort(nextSort(asc, "total"), "total"), null);
+  assert.deepEqual(nextSort(asc, "name"), { column: "name", desc: false });
+  assert.deepEqual(ids(asc), [2, 3, 1]);
+  assert.deepEqual(ids({ column: "total", desc: true }), [1, 3, 2]);
+  // by id (3 < 47), not by label (Zeta > Αλφα); nulls first like key order
+  assert.deepEqual(ids({ column: "customer_id", desc: false }), [3, 2, 1]);
+  assert.deepEqual(ids({ column: "total", desc: false }, "confirmed"), [2, 3]);
 });

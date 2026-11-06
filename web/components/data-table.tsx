@@ -3,8 +3,8 @@
 import { type ColumnDef, tableFeatures, useTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef } from "react";
-import { type Row, type RowChange, tableRows } from "@/lib/changes";
-import { cellKind, cellText, isGreek, labelFor, type NameOf, statusToken } from "@/lib/format";
+import type { Row, RowChange } from "@/lib/changes";
+import { cellKind, cellText, isGreek, labelFor, type NameOf, type Sort, statusToken } from "@/lib/format";
 
 type Item = { row: Row; change?: RowChange };
 
@@ -43,9 +43,13 @@ function Cell({ column, value, nameOf }: { column: string; value: unknown; nameO
   return <>{cellText(column, value, nameOf)}</>;
 }
 
-/** One table, read-only: sticky header, gutter and key columns pinned left, only on-screen rows in the DOM. */
-export function DataTable({ name, rows, pk, nameOf }: { name: string; rows: Row[]; pk: string[]; nameOf: NameOf }) {
-  const data = useMemo(() => tableRows(rows, pk, undefined), [rows, pk]);
+/**
+ * One table, read-only: sticky header, gutter and key columns pinned left, only on-screen rows in the DOM.
+ * `rows` is the whole table (column widths); `items` is what shows, already filtered and sorted.
+ */
+export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort }: {
+  name: string; rows: Row[]; items: Item[]; pk: string[]; nameOf: NameOf; sort: Sort; onSort: (column: string) => void;
+}) {
   const columns = useMemo(() => {
     const keys = Object.keys(rows[0] ?? Object.fromEntries(pk.map((k) => [k, null])));
     const ordered = [...pk, ...keys.filter((k) => !pk.includes(k))];
@@ -99,13 +103,22 @@ export function DataTable({ name, rows, pk, nameOf }: { name: string; rows: Row[
             <th aria-hidden className="sticky top-0 left-0 z-30 h-8 border-b border-line bg-panel" />
             {table.getHeaderGroups()[0].headers.map((h, i) => {
               const p = columns[i].meta.pinned;
+              const dir = sort?.column === h.id ? (sort.desc ? "descending" : "ascending") : undefined;
               return (
                 <th
                   key={h.id}
                   style={pinStyle(p)}
-                  className={`sticky top-0 h-8 truncate border-b border-line bg-panel px-3 text-xs font-medium tracking-[.04em] text-muted-foreground uppercase ${p === undefined ? "z-10" : "z-30"} ${alignRight(h.id) ? "text-right" : "text-left"}`}
+                  aria-sort={dir}
+                  className={`sticky top-0 h-8 border-b border-line bg-panel p-0 text-xs font-medium tracking-[.04em] text-muted-foreground uppercase ${p === undefined ? "z-10" : "z-30"} ${alignRight(h.id) ? "text-right" : "text-left"}`}
                 >
-                  <table.FlexRender header={h} />
+                  <button
+                    type="button"
+                    onClick={() => onSort(h.id)}
+                    className={`flex size-full items-center gap-1 px-3 uppercase hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring ${alignRight(h.id) ? "flex-row-reverse" : ""} ${dir ? "text-foreground" : ""}`}
+                  >
+                    <span className="truncate"><table.FlexRender header={h} /></span>
+                    {dir && <span aria-hidden>{dir === "ascending" ? "↑" : "↓"}</span>}
+                  </button>
                 </th>
               );
             })}
