@@ -12,7 +12,7 @@ jobs:
         python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv sync --python ${{ matrix.python }}
       - run: uv run ruff check .
       - run: uv run pytest -q
@@ -35,6 +35,6 @@ jobs:
       - run: npm test
       - run: npm run build
       # Playwright against `next start` and the fake API (tests/e2e_server.py, started by uv). Chromium only.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
