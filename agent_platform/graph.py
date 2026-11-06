@@ -19,7 +19,6 @@ from agent_platform.router import CLARIFY_QUESTION, DEPARTMENTS, hybrid_route, i
 from agent_platform.runtimes.base import HISTORY_KEY, RunContext, RuntimeAdapter, ToolError
 from agent_platform.specs import SPECS, AgentSpec
 
-SESSION_ID_KEY = "session_id"
 PENDING_USER_TEXT_KEY = "pending_user_text"
 LAST_ROUTE_KEY = "last_route"
 GATE_KEY = "write_gate"
@@ -33,7 +32,7 @@ class OrchestratorState(TypedDict, total=False):
     runtime: str  # which runtime answered: "ollama", "claude", or "router" for a clarify
     response: str
     pending: list[dict[str, Any]]  # this turn's blocked write calls: [{tool, args}]
-    # Cross-turn state: session_id, pending clarify text, last department, write gate, history.
+    # Cross-turn state: pending clarify text, last department, write gate, history.
     artifacts: dict[str, Any]
 
 
@@ -93,19 +92,8 @@ def build_orchestrator(
 
     async def run(runtime_name: str, spec: AgentSpec, state: OrchestratorState, text: str | None = None) -> str:
         runtime = claude if runtime_name == "claude" else ollama
-        artifacts = state["artifacts"]
-        # Only Ollama keeps a host-managed MCP session; Claude connects inside its own MCP subprocess.
-        ctx = RunContext(
-            session_id=artifacts.get(SESSION_ID_KEY) if runtime_name == "ollama" else None,
-            artifacts=artifacts,
-            gate=artifacts[GATE_KEY],
-        )
-        ensure_connected = getattr(runtime, "ensure_connected", None)
-        if ensure_connected:
-            await ensure_connected(ctx)
+        ctx = RunContext(artifacts=state["artifacts"], gate=state["artifacts"][GATE_KEY])
         reply = await runtime.run_turn(spec=spec, user_text=text or state.get("user_text") or "", context=ctx)
-        if runtime_name == "ollama" and ctx.session_id:
-            artifacts[SESSION_ID_KEY] = ctx.session_id
         state["runtime"] = runtime_name
         return reply
 
@@ -132,16 +120,8 @@ def build_orchestrator(
         try:
             state["response"] = await run(runtime_name, spec, state)
             return state
-        except ToolError as te:
+        except ToolError as te:  # the adapter already retried what it could (e.g. an expired session)
             error = te
-            if runtime_name == "ollama" and te.kind == "session":
-                # Session expired: reconnect once and rerun the same turn.
-                state["artifacts"].pop(SESSION_ID_KEY, None)
-                try:
-                    state["response"] = await run(runtime_name, spec, state)
-                    return state
-                except ToolError as retry_te:
-                    error = retry_te
 
         msg = str(error.error.get("message") or error)
         details = error.error.get("details")

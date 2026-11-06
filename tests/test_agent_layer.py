@@ -8,7 +8,7 @@ import pytest
 # Agent-platform orchestrator depends on langgraph; skip these tests if not installed.
 pytest.importorskip("langgraph")
 
-from agent_platform.graph import SESSION_ID_KEY, RuntimePolicy, build_orchestrator
+from agent_platform.graph import RuntimePolicy, build_orchestrator
 from agent_platform.prompting import PromptPolicy, build_system_prompt
 from agent_platform.runtimes.base import RunContext, RuntimeAdapter, ToolError
 from agent_platform.specs import SPECS
@@ -40,9 +40,6 @@ class FakeRuntime(RuntimeAdapter):
     fail_once: bool = False
     reply: str | None = None
     seen: list[str] = field(default_factory=list)
-
-    async def ensure_connected(self, context: RunContext) -> None:
-        context.session_id = context.session_id or "SID-123"
 
     async def run_turn(self, *, spec, user_text: str, context: RunContext) -> str:  # type: ignore[override]
         self.seen.append(spec.name)
@@ -147,11 +144,11 @@ def test_business_rule_error_is_relayed_not_escalated() -> None:
     assert state["runtime"] == "ollama" and "boom" in state["response"] and claude.seen == []
 
 
-def test_session_error_reconnects_and_reruns_once() -> None:
-    ollama, claude = FakeRuntime("ollama", fail_once=True, error_kind="session"), FakeRuntime("claude")
+def test_session_error_the_adapter_gave_up_on_is_relayed_not_escalated() -> None:
+    ollama, claude = FakeRuntime("ollama", fail=True, error_kind="session"), FakeRuntime("claude")
     state = _turn(build_orchestrator(ollama=ollama, claude=claude), {"artifacts": {}}, "approve order 5001")
-    assert ollama.seen == ["sales", "sales"] and claude.seen == []
-    assert state["response"] == "sales: approve order 5001"
+    assert ollama.seen == ["sales"] and claude.seen == []  # no graph-level rerun, no escalation
+    assert state["runtime"] == "ollama" and "boom" in state["response"]
 
 
 def test_tool_error_without_escalation_asks_user() -> None:
@@ -160,16 +157,6 @@ def test_tool_error_without_escalation_asks_user() -> None:
     )
     state = _turn(app, {"artifacts": {}}, "approve order 5001")
     assert state["runtime"] == "ollama" and "boom" in state["response"]
-
-
-def test_session_id_persisted_for_ollama_only() -> None:
-    app = build_orchestrator(ollama=FakeRuntime("ollama"), claude=FakeRuntime("claude"))
-    assert _turn(app, {"artifacts": {}}, "approve order 5001")["artifacts"][SESSION_ID_KEY] == "SID-123"
-
-    app2 = build_orchestrator(
-        ollama=FakeRuntime("ollama"), claude=FakeRuntime("claude"), policy=RuntimePolicy(default="claude")
-    )
-    assert SESSION_ID_KEY not in _turn(app2, {"artifacts": {}}, "approve order 5001")["artifacts"]
 
 
 def test_department_specs_reference_real_mcp_tools() -> None:
@@ -182,3 +169,63 @@ def test_department_specs_reference_real_mcp_tools() -> None:
     # The router keeps "customer 47" follow-ups with finance, so finance must be able to read customers (only read).
     finance = set(SPECS["finance"].tool_names)
     assert "get_customer" in finance and not finance & {"create_customer", "update_customer", "delete_customer"}
+
+
+class _FakeMcp:
+    """A raw MCP tool for OllamaRuntime: connect hands out S1, S2, ...; business tools answer from a script."""
+
+    def __init__(self, name: str, answers: list[dict]):
+        self.name, self.description, self.args_schema = name, "", None
+        self.answers, self.calls = answers, []
+
+    async def ainvoke(self, kwargs):
+        self.calls.append(kwargs)
+        if self.name == "softone_connect_default":
+            return {"ok": True, "data": {"session_id": f"S{len(self.calls)}"}}
+        return self.answers.pop(0)
+
+
+LOGIN_FIRST = {"ok": False, "error": {"code": -1, "message": "Invalid request. Please login first"}}
+
+
+def _ollama_with(monkeypatch, answers: list[dict]):
+    """An OllamaRuntime whose model always calls get_customer once, then replies with the tool's data."""
+    import langchain.agents
+    import langchain_ollama
+    from langchain_core.messages import AIMessage
+
+    from agent_platform.runtimes.ollama import OllamaRuntime
+
+    def create_agent(_model, tools, system_prompt):
+        class Agent:
+            async def ainvoke(self, state):
+                assert "session_id = S" in system_prompt
+                out = await next(t for t in tools if t.name == "get_customer").ainvoke({"id": 47})
+                return {"messages": [*state["messages"], AIMessage(content=str(out["data"]))]}
+
+        return Agent()
+
+    monkeypatch.setattr(langchain.agents, "create_agent", create_agent)
+    monkeypatch.setattr(langchain_ollama, "ChatOllama", lambda **_: None)
+    rt = OllamaRuntime()
+    tools = {n: _FakeMcp(n, answers if n == "get_customer" else []) for n in SPECS["sales"].tool_names}
+    tools["softone_connect_default"] = _FakeMcp("softone_connect_default", [])
+    rt._raw_tools_by_name = tools
+    return rt, tools
+
+
+def test_ollama_reconnects_once_on_expired_session(monkeypatch) -> None:
+    rt, tools = _ollama_with(monkeypatch, [LOGIN_FIRST, {"ok": True, "data": "customer 47"}])
+    ctx = RunContext()
+    reply = asyncio.run(rt.run_turn(spec=SPECS["sales"], user_text="show customer 47", context=ctx))
+    assert reply == "customer 47"
+    assert len(tools["softone_connect_default"].calls) == 2  # S1 expired, S2 worked
+    humans = [m for m in ctx.artifacts["history"] if m.type == "human"]
+    assert [m.content for m in humans] == ["show customer 47"]  # the rerun didn't duplicate the message
+
+
+def test_ollama_second_session_error_propagates(monkeypatch) -> None:
+    rt, _ = _ollama_with(monkeypatch, [LOGIN_FIRST, LOGIN_FIRST])
+    with pytest.raises(ToolError) as caught:
+        asyncio.run(rt.run_turn(spec=SPECS["sales"], user_text="show customer 47", context=RunContext()))
+    assert caught.value.kind == "session"

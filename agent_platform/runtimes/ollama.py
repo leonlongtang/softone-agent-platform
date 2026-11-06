@@ -223,6 +223,7 @@ class OllamaRuntime(RuntimeAdapter):
     _session_cm: Any | None = None
     _session: Any | None = None
     _raw_tools_by_name: dict[str, Any] | None = None
+    _session_id: str | None = None  # the SoftOne login; one runtime per Chat, so it lives here
 
     async def __aenter__(self) -> OllamaRuntime:
         # Lazy imports keep CLI startup fast.
@@ -250,16 +251,15 @@ class OllamaRuntime(RuntimeAdapter):
         self._session = None
         self._raw_tools_by_name = None
 
-    async def ensure_connected(self, context: RunContext) -> None:
-        if context.session_id:
-            return
+    async def _ensure_session(self) -> str:
+        if self._session_id:
+            return self._session_id
         if not self._raw_tools_by_name:
             raise RuntimeError("OllamaRuntime not initialized (use `async with`).")
-        sid = await _connect(self._raw_tools_by_name, debug=self.debug)
-        if sid:
-            context.session_id = sid
-            return
-        raise RuntimeError("Startup connect failed (no session_id). Check SOFTONE_* configuration.")
+        self._session_id = await _connect(self._raw_tools_by_name, debug=self.debug)
+        if not self._session_id:
+            raise RuntimeError("Startup connect failed (no session_id). Check SOFTONE_* configuration.")
+        return self._session_id
 
     def _system_prompt(self, *, spec: AgentSpec, session_id: str) -> str:
         session_instruction = (
@@ -303,29 +303,30 @@ class OllamaRuntime(RuntimeAdapter):
         from langchain_core.messages import AIMessage, HumanMessage
         from langchain_ollama import ChatOllama
 
-        await self.ensure_connected(context)
-        assert context.session_id
-
         # One conversation shared by all departments, so a handoff (sales creates
         # order 5003, then "invoice that order" goes to finance) keeps its context.
         # Only the system prompt and tool allowlist change per department.
-        messages: list[Any] = context.artifacts.get(HISTORY_KEY) or []
-        agent = create_agent(
-            ChatOllama(model=self.model),
-            self._business_tools_for_spec(spec, context.gate),
-            system_prompt=self._system_prompt(spec=spec, session_id=context.session_id),
-        )
-
-        messages.append(HumanMessage(content=user_text))
-        try:
-            result = await agent.ainvoke({"messages": messages})
-            context.artifacts[HISTORY_KEY] = result["messages"]
-            return str(result["messages"][-1].content)
-        except ToolError as te:
-            messages.append(AIMessage(content=_build_retry_question(tool_name=te.tool_name, error=te.error)))
-            context.artifacts[HISTORY_KEY] = messages
-            raise
-        except Exception:
-            if self.debug:
-                logger.exception("OllamaRuntime.run_turn failed")
-            raise
+        messages: list[Any] = [*(context.artifacts.get(HISTORY_KEY) or []), HumanMessage(content=user_text)]
+        for attempt in range(2):
+            agent = create_agent(
+                ChatOllama(model=self.model),
+                self._business_tools_for_spec(spec, context.gate),
+                system_prompt=self._system_prompt(spec=spec, session_id=await self._ensure_session()),
+            )
+            try:
+                result = await agent.ainvoke({"messages": messages})
+                context.artifacts[HISTORY_KEY] = result["messages"]
+                return str(result["messages"][-1].content)
+            except ToolError as te:
+                if te.kind == "session" and attempt == 0:
+                    logger.debug("[ollama_runtime] session expired; reconnecting and rerunning the turn")
+                    self._session_id = None
+                    continue
+                retry = AIMessage(content=_build_retry_question(tool_name=te.tool_name, error=te.error))
+                context.artifacts[HISTORY_KEY] = [*messages, retry]
+                raise
+            except Exception:
+                if self.debug:
+                    logger.exception("OllamaRuntime.run_turn failed")
+                raise
+        raise AssertionError("unreachable")

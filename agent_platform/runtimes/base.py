@@ -19,8 +19,6 @@ ToolErrorKind = Literal["bad_input", "session", "other"]
 class RunContext:
     """Execution context the orchestrator carries across turns."""
 
-    # Ollama runtime uses a host-managed session_id tied to its persistent MCP session.
-    session_id: str | None = None
     # Cross-turn state (conversation history, etc.).
     artifacts: dict[str, Any] = field(default_factory=dict)
     # Write confirmation shared by all runtimes; runtimes must consult it before any tool call.
