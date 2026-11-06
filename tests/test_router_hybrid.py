@@ -24,7 +24,6 @@ def test_hybrid_route_unknown_without_signals() -> None:
     assert hybrid_route("") == "unknown"
 
 
-
 def test_invoicing_an_order_is_finance() -> None:
     assert hybrid_route("Invoice order 5001") == "finance"
     assert hybrid_route("invoice that order") == "finance"

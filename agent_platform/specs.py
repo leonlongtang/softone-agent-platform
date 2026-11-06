@@ -132,5 +132,4 @@ def finance_agent_spec() -> AgentSpec:
     )
 
 
-
 SPECS: dict[str, AgentSpec] = {s.name: s for s in (sales_agent_spec(), inventory_agent_spec(), finance_agent_spec())}

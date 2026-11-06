@@ -4,6 +4,7 @@ FK violations are converted into `WsError(WS_FK_BLOCKED)` inside each
 object handler via `validators.delete_with_fk_guard`, so callers always see
 structured errors instead of raw `sqlite3.IntegrityError`.
 """
+
 from __future__ import annotations
 
 import sqlite3

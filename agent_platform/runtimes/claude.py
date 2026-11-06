@@ -76,7 +76,10 @@ class ClaudeSdkRuntime(RuntimeAdapter):
             cwd=str(REPO_ROOT),
             mcp_servers={
                 MCP_SERVER_NAME: {
-                    "type": "stdio", "command": params["command"], "args": params["args"], "env": params["env"]
+                    "type": "stdio",
+                    "command": params["command"],
+                    "args": params["args"],
+                    "env": params["env"],
                 }
             },
             tools=[],  # no built-in Claude Code tools (Bash, Read, ...): MCP tools only

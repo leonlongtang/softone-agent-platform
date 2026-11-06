@@ -26,7 +26,6 @@ py-modules = ["config"]
 
 [tool.setuptools.package-data]
 mock_db = ["schema.sql"]
-agent_platform = ["web/index.html"]
 
 [tool.ruff]
 line-length = 120

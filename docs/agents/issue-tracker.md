@@ -8,6 +8,7 @@ Issues and specs for this repo live as markdown files in `.scratch/`.
 - The spec is `.scratch/<feature-slug>/spec.md`
 - Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`, never a single combined tickets file
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
+- Only the user sets a ticket to `ready-for-agent`. Tickets from a spec whose decisions the agent drafted (no grilling round, no explicit sign-off) start as `needs-triage`, so an unattended loop (Ralph, `/implement-spec`) can't build on unsettled decisions
 - Implementing a ticket sets its `Status:` to `resolved` in the same commit as the code, so the board shows what's unblocked
 - Tick a checkbox only once it's proven; an unproven one stays unticked, with the reason in the Done note
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
@@ -18,7 +19,7 @@ Create a new file under `.scratch/<feature-slug>/` (creating the directory if ne
 
 ## When a skill says "fetch the relevant ticket"
 
-Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+Read the file at the referenced path. The user will normally pass the path or the issue number directly. A bare number means the open, unblocked ticket with that number across `.scratch/*/issues/`; ask if more than one matches.
 
 ## Wayfinding operations
 

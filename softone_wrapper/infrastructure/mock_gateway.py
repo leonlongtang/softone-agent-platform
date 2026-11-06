@@ -156,9 +156,7 @@ class MockGateway(SoftOneGateway):
         finally:
             conn.close()
 
-    def list_invoices(
-        self, *, status: str = "", customer_id: int | None = None
-    ) -> list[dict[str, Any]]:
+    def list_invoices(self, *, status: str = "", customer_id: int | None = None) -> list[dict[str, Any]]:
         status = status.strip()
 
         where: list[str] = []
@@ -170,10 +168,7 @@ class MockGateway(SoftOneGateway):
             where.append("customer_id = ?")
             params.append(int(customer_id))
 
-        sql = (
-            "SELECT id, customer_id, order_id, amount, status, created_at "
-            "FROM invoices_business"
-        )
+        sql = "SELECT id, customer_id, order_id, amount, status, created_at FROM invoices_business"
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY id DESC"
@@ -244,8 +239,7 @@ class MockGateway(SoftOneGateway):
         conn.row_factory = sqlite3.Row
         try:
             rows = conn.execute(
-                "SELECT id, invoice_id, amount, payment_date "
-                "FROM payments WHERE invoice_id = ? ORDER BY id",
+                "SELECT id, invoice_id, amount, payment_date FROM payments WHERE invoice_id = ? ORDER BY id",
                 (int(invoice_id),),
             ).fetchall()
             return [
@@ -259,4 +253,3 @@ class MockGateway(SoftOneGateway):
             ]
         finally:
             conn.close()
-

@@ -50,11 +50,19 @@ def test_original_rows_unchanged(data: dict[str, list[dict]]) -> None:
 
     items = by("items", "id")
     assert [(items[i]["stock"], items[i]["reserved"]) for i in range(1001, 1006)] == [
-        (14, 1), (46, 0), (22, 0), (18, 1), (37, 0)
+        (14, 1),
+        (46, 0),
+        (22, 0),
+        (18, 1),
+        (37, 0),
     ]
     orders = by("orders", "id")
     assert [(orders[i]["total"], orders[i]["status"]) for i in range(5001, 5006)] == [
-        (1225, "Confirmed"), (80, "Confirmed"), (1020, "Confirmed"), (295, "Confirmed"), (1650, "Draft")
+        (1225, "Confirmed"),
+        (80, "Confirmed"),
+        (1020, "Confirmed"),
+        (295, "Confirmed"),
+        (1650, "Draft"),
     ]
     invoices = by("invoices_business", "id")
     assert [invoices[i]["status"] for i in range(1, 6)] == ["paid", "unpaid", "partial", "paid", "unpaid"]

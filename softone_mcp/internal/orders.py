@@ -8,6 +8,7 @@ Layer contract:
       response into an adapter/business-friendly dict.
     - Let SoftOneError propagate.
 """
+
 from __future__ import annotations
 
 from typing import Any

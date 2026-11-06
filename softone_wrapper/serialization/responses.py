@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from ..domain.errors import (
+    INVALID_CREDENTIALS_CODES,
+    NOT_AUTHENTICATED_CODES,
+    SESSION_EXPIRED_CODES,
     InvalidCredentials,
     InvalidRequest,
     InvalidServiceCall,
@@ -39,11 +42,11 @@ def raise_for_softone_error(resp: dict[str, Any]) -> None:
 
     details = {"response": resp}
 
-    if code in (-2, -10, 1001):
+    if code in INVALID_CREDENTIALS_CODES:
         raise InvalidCredentials(code, message, details)
-    if code in (-101, -7, 13, 213):
+    if code in SESSION_EXPIRED_CODES:
         raise SessionExpired(code, message, details)
-    if code in (-1,):
+    if code in NOT_AUTHENTICATED_CODES:
         raise NotAuthenticated(code, message, details)
     if code in (-12,):
         raise InvalidServiceCall(code, message, details)
@@ -51,4 +54,3 @@ def raise_for_softone_error(resp: dict[str, Any]) -> None:
         raise InvalidRequest(code, message, details)
 
     raise SoftOneError(code, message, details)
-

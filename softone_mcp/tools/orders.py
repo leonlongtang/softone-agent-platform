@@ -11,6 +11,7 @@ LLMs generate tool-calls far more reliably against flat JSON schemas than
 against nested ones. `OrderLineInput` is kept only as the element type for
 the `items` array — each line still has just `item_id` and `quantity`.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -55,6 +56,7 @@ from softone_wrapper.domain.errors import SoftOneError
 # entry is precise — not a nested wrapper around the whole tool input).
 # ---------------------------------------------------------------------------
 
+
 class OrderLineInput(BaseModel):
     item_id: int = Field(..., description="ID of the item to order")
     quantity: int = Field(..., gt=0, description="Quantity (must be > 0)")
@@ -69,28 +71,28 @@ class WorkflowOrderLineInput(BaseModel):
 # MCP tool registrations
 # ---------------------------------------------------------------------------
 
+
 def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
 
-    @mcp.tool(name="create_order", description=(
-        "Create a new sales order for a customer. "
-        "Validates customer and stock, reserves inventory, calculates total. "
-        "Returns order with status 'Draft' or 'Confirmed' (auto-approved if total < threshold)."
-    ))
+    @mcp.tool(
+        name="create_order",
+        description=(
+            "Create a new sales order for a customer. "
+            "Validates customer and stock, reserves inventory, calculates total. "
+            "Returns order with status 'Draft' or 'Confirmed' (auto-approved if total < threshold)."
+        ),
+    )
     def create_order_tool(
         session_id: Annotated[
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        customer_id: Annotated[
-            int, Field(description="ID of the customer placing the order")
-        ],
+        customer_id: Annotated[int, Field(description="ID of the customer placing the order")],
         items: Annotated[
             list[OrderLineInput],
             Field(description="List of items and quantities"),
         ],
-        notes: Annotated[
-            str, Field(description="Optional order notes")
-        ] = "",
+        notes: Annotated[str, Field(description="Optional order notes")] = "",
     ) -> dict[str, Any]:
         customers_repo = SoftOneCustomerRepository(client, session_id)
         items_repo = SoftOneItemRepository(client, session_id)
@@ -110,23 +112,21 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except CustomerNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"customer_id": e.customer_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"customer_id": e.customer_id}))
         except ItemNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"item_id": e.item_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"item_id": e.item_id}))
         except InsufficientStockError as e:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(e),
-                {
-                    "item_id": e.item_id,
-                    "requested": e.requested,
-                    "available": e.available,
-                },
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(e),
+                    {
+                        "item_id": e.item_id,
+                        "requested": e.requested,
+                        "available": e.available,
+                    },
+                )
+            )
         except ValueError as e:
             return err(SoftOneError(SOFTONE_BAD_INPUT_CODE, str(e), {}))
         except SoftOneError as e:
@@ -277,38 +277,39 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e, meta=trace.meta())
 
-    @mcp.tool(name="approve_order", description=(
-        "Approve a Draft order, moving it to Confirmed status. "
-        "Once confirmed, an invoice can be generated. "
-        "Raises an error if the order is not in Draft status."
-    ))
+    @mcp.tool(
+        name="approve_order",
+        description=(
+            "Approve a Draft order, moving it to Confirmed status. "
+            "Once confirmed, an invoice can be generated. "
+            "Raises an error if the order is not in Draft status."
+        ),
+    )
     def approve_order_tool(
         session_id: Annotated[
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        order_id: Annotated[
-            int, Field(description="ID of the Draft order to approve")
-        ],
+        order_id: Annotated[int, Field(description="ID of the Draft order to approve")],
     ) -> dict[str, Any]:
         orders_repo = SoftOneOrderRepository(client, session_id)
         try:
             data = approve_order_bl(orders_repo, order_id=order_id)
             return ok(data)
         except OrderNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}))
         except InvalidOrderStatusError as e:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(e),
-                {
-                    "order_id": e.order_id,
-                    "current_status": e.current,
-                    "expected_status": e.expected,
-                },
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(e),
+                    {
+                        "order_id": e.order_id,
+                        "current_status": e.current,
+                        "expected_status": e.expected,
+                    },
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -318,26 +319,21 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        order_id: Annotated[
-            int, Field(description="ID of the order to fetch")
-        ],
+        order_id: Annotated[int, Field(description="ID of the order to fetch")],
     ) -> dict[str, Any]:
         orders_repo = SoftOneOrderRepository(client, session_id)
         try:
             data = get_order_bl(orders_repo, order_id=order_id)
             return ok(data)
         except OrderNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}))
         except SoftOneError as e:
             return err(e)
 
     @mcp.tool(
         name="get_order_lines",
         description=(
-            "Fetch line items for a sales order by order_id. "
-            "Each line includes item_id, quantity, and unit_price."
+            "Fetch line items for a sales order by order_id. Each line includes item_id, quantity, and unit_price."
         ),
     )
     def get_order_lines_tool(
@@ -345,9 +341,7 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        order_id: Annotated[
-            int, Field(description="ID of the order whose lines to fetch")
-        ],
+        order_id: Annotated[int, Field(description="ID of the order whose lines to fetch")],
     ) -> dict[str, Any]:
         orders_repo = SoftOneOrderRepository(client, session_id)
         orderitems_repo = SoftOneOrderItemsRepository(client, session_id)
@@ -355,9 +349,7 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             data = get_order_lines_bl(orders_repo, orderitems_repo, order_id=order_id)
             return ok(data)
         except OrderNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}))
         except SoftOneError as e:
             return err(e)
 
@@ -391,22 +383,26 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             try:
                 cust = int(customer_id)
             except ValueError:
-                return err(SoftOneError(
-                    SOFTONE_BAD_INPUT_CODE,
-                    "Invalid customer_id. Expected an integer.",
-                    {"customer_id": customer_id},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_BAD_INPUT_CODE,
+                        "Invalid customer_id. Expected an integer.",
+                        {"customer_id": customer_id},
+                    )
+                )
 
         lim: int | None = None
         if limit.strip():
             try:
                 lim = int(limit)
             except ValueError:
-                return err(SoftOneError(
-                    SOFTONE_BAD_INPUT_CODE,
-                    "Invalid limit. Expected an integer.",
-                    {"limit": limit},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_BAD_INPUT_CODE,
+                        "Invalid limit. Expected an integer.",
+                        {"limit": limit},
+                    )
+                )
 
         orders_repo = SoftOneOrderRepository(client, session_id)
         try:
@@ -447,19 +443,19 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             data = cancel_order_bl(orders_repo, order_id=order_id)
             return ok(data)
         except OrderNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}))
         except InvalidOrderStatusError as e:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(e),
-                {
-                    "order_id": e.order_id,
-                    "current_status": e.current,
-                    "expected_status": e.expected,
-                },
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(e),
+                    {
+                        "order_id": e.order_id,
+                        "current_status": e.current,
+                        "expected_status": e.expected,
+                    },
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -612,21 +608,25 @@ def register_order_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             try:
                 lim = int(limit)
             except ValueError:
-                return err(SoftOneError(
-                    SOFTONE_BAD_INPUT_CODE,
-                    "Invalid limit. Expected an integer.",
-                    {"limit": limit},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_BAD_INPUT_CODE,
+                        "Invalid limit. Expected an integer.",
+                        {"limit": limit},
+                    )
+                )
 
         customers_repo = SoftOneCustomerRepository(client, session_id)
         try:
             data = search_customers_bl(customers_repo, q=q, limit=lim)
             return ok(data)
         except ValueError as ve:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(ve),
-                {"q": q, "limit": lim},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(ve),
+                    {"q": q, "limit": lim},
+                )
+            )
         except SoftOneError as e:
             return err(e)

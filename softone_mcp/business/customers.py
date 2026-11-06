@@ -8,6 +8,7 @@ Layer contract:
     - Let SoftOneError propagate for anything the agent layer should surface as-is
       (auth failures, transport errors, unknown SoftOne error codes, etc.).
 """
+
 from __future__ import annotations
 
 from typing import Any

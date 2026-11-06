@@ -73,4 +73,3 @@ def load_config() -> SoftOneAppConfig:
         password=password,
         app_id=app_id,
     )
-

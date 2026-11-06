@@ -82,4 +82,3 @@ def register_resources(mcp: FastMCP) -> None:
     )
     def examples_resource() -> str:
         return EXAMPLES_MD
-

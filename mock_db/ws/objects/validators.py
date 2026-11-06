@@ -12,6 +12,7 @@ vocabulary, FK existence, "already invoiced" guards. Company-policy logic
 (auto-approve thresholds, payment terms, invoice generation rules) belongs
 in `softone_mcp/business/`, not here.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -25,11 +26,13 @@ from ..errors import WS_BUSINESS_RULE, WS_FK_BLOCKED, WsError
 # explicitly disallowed: real ERPs don't let you un-confirm an order; you'd
 # cancel it instead.
 ALLOWED_ORDER_STATUSES: tuple[str, ...] = ("Draft", "Confirmed")
-ALLOWED_ORDER_TRANSITIONS: frozenset[tuple[str, str]] = frozenset({
-    ("Draft", "Draft"),
-    ("Draft", "Confirmed"),
-    ("Confirmed", "Confirmed"),
-})
+ALLOWED_ORDER_TRANSITIONS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("Draft", "Draft"),
+        ("Draft", "Confirmed"),
+        ("Confirmed", "Confirmed"),
+    }
+)
 
 
 def assert_customer_exists(conn: sqlite3.Connection, customer_id: Any) -> int:
@@ -51,9 +54,7 @@ def assert_order_exists(conn: sqlite3.Connection, order_id: Any) -> int:
     return oid
 
 
-def assert_item_and_stock(
-    conn: sqlite3.Connection, product_id: Any, qty: int
-) -> None:
+def assert_item_and_stock(conn: sqlite3.Connection, product_id: Any, qty: int) -> None:
     """Validate that the product exists and has at least `qty` units in stock.
 
     Note: this is the *raw* stock check (qty <= items.stock), not a
@@ -121,9 +122,7 @@ def assert_no_existing_invoice(
         )
 
 
-def delete_with_fk_guard(
-    conn: sqlite3.Connection, sql: str, params: tuple, *, what: str
-) -> sqlite3.Cursor:
+def delete_with_fk_guard(conn: sqlite3.Connection, sql: str, params: tuple, *, what: str) -> sqlite3.Cursor:
     """Run a DELETE; convert FK violations into WsError(WS_FK_BLOCKED) so
     callers get a structured "row is referenced" error instead of a raw
     IntegrityError.

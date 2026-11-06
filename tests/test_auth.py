@@ -8,6 +8,7 @@ Covers:
   - authenticate() with bad selection -> WsError(-2)
   - authenticate() with unknown clientID -> WsError(-1)
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -29,9 +30,7 @@ class TestLogin:
         # Final-tier login goes straight to a session; no `objs` payload.
         assert "objs" not in resp
 
-    def test_login_without_selection_returns_temp_client_id_and_objs(
-        self, db_path: Path
-    ) -> None:
+    def test_login_without_selection_returns_temp_client_id_and_objs(self, db_path: Path) -> None:
         resp = login(db_path=db_path, **SEED_CREDS)
 
         assert resp["success"] is True
@@ -51,9 +50,7 @@ class TestLogin:
         ],
         ids=["bad_password", "unknown_user", "wrong_app_id"],
     )
-    def test_login_rejects_bad_credentials(
-        self, db_path: Path, bad_creds: dict
-    ) -> None:
+    def test_login_rejects_bad_credentials(self, db_path: Path, bad_creds: dict) -> None:
         with pytest.raises(WsError) as exc_info:
             login(db_path=db_path, **bad_creds)
         assert exc_info.value.code == -2
@@ -64,9 +61,7 @@ class TestAuthenticate:
         login_resp = login(db_path=db_path, **SEED_CREDS)
         temp_id = login_resp["clientID"]
 
-        auth_resp = authenticate(
-            clientID=temp_id, db_path=db_path, **SEED_SELECTION
-        )
+        auth_resp = authenticate(clientID=temp_id, db_path=db_path, **SEED_SELECTION)
 
         assert auth_resp["success"] is True
         # The promoted clientID is a NEW token; the temp one shouldn't
@@ -75,9 +70,7 @@ class TestAuthenticate:
         assert isinstance(final_id, str) and final_id
         assert final_id != temp_id
 
-    def test_authenticate_idempotent_for_already_final_session(
-        self, db_path: Path
-    ) -> None:
+    def test_authenticate_idempotent_for_already_final_session(self, db_path: Path) -> None:
         # Drive a final-tier login then re-authenticate -- should be a no-op.
         final_id = login(db_path=db_path, **SEED_CREDS, **SEED_SELECTION)["clientID"]
 

@@ -11,6 +11,7 @@ LLMs generate tool-calls far more reliably against flat JSON schemas than
 against nested ones. Validation/descriptions are preserved via
 `Annotated[type, Field(...)]`.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -47,24 +48,12 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             str,
             Field(description="Customer code. Leave empty to auto-generate."),
         ] = "",
-        afm: Annotated[
-            str, Field(description="Tax id (AFM). Leave empty to omit.")
-        ] = "",
-        email: Annotated[
-            str, Field(description="Email. Leave empty to omit.")
-        ] = "",
-        phone: Annotated[
-            str, Field(description="Phone. Leave empty to omit.")
-        ] = "",
-        address: Annotated[
-            str, Field(description="Address. Leave empty to omit.")
-        ] = "",
-        balance: Annotated[
-            str, Field(description="Opening balance. Leave empty to omit.")
-        ] = "",
-        created_at: Annotated[
-            str, Field(description="Optional created_at ISO string. Leave empty to omit.")
-        ] = "",
+        afm: Annotated[str, Field(description="Tax id (AFM). Leave empty to omit.")] = "",
+        email: Annotated[str, Field(description="Email. Leave empty to omit.")] = "",
+        phone: Annotated[str, Field(description="Phone. Leave empty to omit.")] = "",
+        address: Annotated[str, Field(description="Address. Leave empty to omit.")] = "",
+        balance: Annotated[str, Field(description="Opening balance. Leave empty to omit.")] = "",
+        created_at: Annotated[str, Field(description="Optional created_at ISO string. Leave empty to omit.")] = "",
     ) -> dict[str, Any]:
         final_code = code.strip() or f"AG-{slug(name)[:16]}-{deterministic_suffix(name)}"
         customers_repo = SoftOneCustomerRepository(client, session_id)
@@ -106,11 +95,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     ) -> dict[str, Any]:
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         customers_repo = SoftOneCustomerRepository(client, session_id)
 
@@ -123,11 +114,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         # 2. Delegate to the business layer and envelope the result.
@@ -139,11 +132,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except CustomerNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"customer_id": e.customer_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"customer_id": e.customer_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -174,11 +169,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     ) -> dict[str, Any]:
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         customers_repo = SoftOneCustomerRepository(client, session_id)
 
@@ -190,11 +187,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         patch: dict[str, Any] = {}
@@ -220,11 +219,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             data = update_customer_bl(customers_repo, key=key, **patch)
             return ok(data)
         except CustomerNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"customer_id": e.customer_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"customer_id": e.customer_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -247,11 +248,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     ) -> dict[str, Any]:
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         customers_repo = SoftOneCustomerRepository(client, session_id)
 
@@ -263,11 +266,13 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         try:
@@ -275,10 +280,12 @@ def register_customer_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             data = delete_customer_bl(customers_repo, key=key)
             return ok(data)
         except CustomerNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"customer_id": e.customer_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"customer_id": e.customer_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)

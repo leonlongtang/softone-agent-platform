@@ -1,15 +1,11 @@
 # Coding standards: `web/`
 
-Read during review. Each rule is a judgement call; lint, `tsc` and the tests cover the mechanical ones.
+Read during review, on top of the root `CODING_STANDARDS.md`. Each rule is a judgement call; lint, `tsc` and the tests cover the mechanical ones.
 
 ## Citations
 
 - Comments cite the spec as `DESIGN.md → Section → Subsection`, the source of truth for behaviour.
 - Ticket references are qualified: `frontend-build#NN` for a build ticket, "redesign ticket NN" for where a decision was made. A bare "ticket NN" is ambiguous between the two efforts.
-
-## Deliberate shortcuts
-
-A simplification with a known ceiling (a heuristic, an estimate, a scale limit) carries a `ponytail:` comment naming the ceiling and the upgrade path, so `/ponytail-debt` can find it.
 
 ## Floating chat
 

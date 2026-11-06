@@ -2,6 +2,7 @@
 
 Mirrors the SoftOne CUSTOMER + CUSEXTRA tables (1:1 child).
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -117,8 +118,12 @@ def set_customer(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> di
             WHERE trdr=?
             """,
             (
-                g("CODE"), g("NAME"), g("AFM"), g("EMAIL"),
-                g("PHONE") or g("PHONE01"), g("ADDRESS"),
+                g("CODE"),
+                g("NAME"),
+                g("AFM"),
+                g("EMAIL"),
+                g("PHONE") or g("PHONE01"),
+                g("ADDRESS"),
                 target_trdr,
             ),
         )
@@ -132,7 +137,8 @@ def set_customer(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> di
                 target_trdr,
                 g("CODE") or f"AUTO-{target_trdr}",
                 g("NAME") or "",
-                g("AFM"), g("EMAIL"),
+                g("AFM"),
+                g("EMAIL"),
                 g("PHONE") or g("PHONE01"),
                 g("ADDRESS"),
             ),
@@ -159,7 +165,9 @@ def set_customer(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> di
 
 def del_customer(conn: sqlite3.Connection, key: Any) -> dict[str, Any]:
     cur = delete_with_fk_guard(
-        conn, "DELETE FROM customers WHERE trdr = ?", (int(key),),
+        conn,
+        "DELETE FROM customers WHERE trdr = ?",
+        (int(key),),
         what=f"customer {int(key)}",
     )
     if cur.rowcount == 0:
@@ -190,6 +198,9 @@ def selector_lookup(conn: sqlite3.Connection, keyvalue: Any, resultfields: str) 
 # Re-export so services/metadata.py doesn't have to know about
 # WS_BUSINESS_GENERIC for the selectorFields path.
 __all__ = [
-    "del_customer", "get_customer", "selector_lookup", "set_customer",
+    "del_customer",
+    "get_customer",
+    "selector_lookup",
+    "set_customer",
     "WS_BUSINESS_GENERIC",
 ]

@@ -7,4 +7,3 @@ business workflows, and internal CRUD helpers.
 
 SOFTONE_NOT_FOUND_CODE = 2001  # "Invalid request, Data does not exist."
 SOFTONE_BAD_INPUT_CODE = -9
-

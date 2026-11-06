@@ -9,8 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { labelFor } from "@/lib/format";
 
-export type Runtime = "ollama" | "claude";
-export interface Tool { name: string; write: boolean; description: string }
+import type { Runtime, Tool } from "@/lib/client";
 export const NAME: Record<Runtime, string> = { ollama: "Ollama", claude: "Claude" };
 
 /** Which dialog is open. A confirm carries its own copy and action (DESIGN.md → Flows 3–5). */

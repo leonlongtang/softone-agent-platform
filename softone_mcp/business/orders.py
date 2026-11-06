@@ -8,6 +8,7 @@ Layer contract:
        CustomerNotFoundError, ItemNotFoundError, ValueError).
     - Let SoftOneError propagate for anything else.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -38,6 +39,7 @@ AUTO_APPROVE_THRESHOLD = 1000.0
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _resolve_items(
     items_repo: ItemRepository,
@@ -77,9 +79,7 @@ def _resolve_items(
 
 def _calculate_total(enriched_lines: list[dict[str, Any]]) -> float:
     """Sum qty × unit_price across all lines, rounded to 2 decimals."""
-    return round(
-        sum(line["quantity"] * line["unit_price"] for line in enriched_lines), 2
-    )
+    return round(sum(line["quantity"] * line["unit_price"] for line in enriched_lines), 2)
 
 
 def _determine_status(total: float) -> str:
@@ -103,14 +103,13 @@ def _determine_status_with_policy(total: float, *, auto_approve_policy: str) -> 
         return "Confirmed"
     if policy in ("if_under_threshold", "if-under-threshold", "threshold"):
         return _determine_status(total)
-    raise ValueError(
-        "Invalid auto_approve_policy. Expected one of: never, if_under_threshold, always."
-    )
+    raise ValueError("Invalid auto_approve_policy. Expected one of: never, if_under_threshold, always.")
 
 
 # ---------------------------------------------------------------------------
 # Business logic functions
 # ---------------------------------------------------------------------------
+
 
 def create_order_bl(
     customers: CustomerRepository,
@@ -156,8 +155,7 @@ def create_order_bl(
 
     # 4. Reserve stock.
     reserve_lines: list[ItemLineInput] = [
-        {"item_id": int(ln["item_id"]), "quantity": int(ln["quantity"])}
-        for ln in enriched
+        {"item_id": int(ln["item_id"]), "quantity": int(ln["quantity"])} for ln in enriched
     ]
     token = inventory.reserve(lines=reserve_lines)
 

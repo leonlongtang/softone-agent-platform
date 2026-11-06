@@ -12,13 +12,11 @@ CAPABILITIES: dict[str, Any] = {
         # Core / session
         {"name": "softone_connect_default", "mock_only": False, "side_effects": "writes"},
         {"name": "get_context", "mock_only": False, "side_effects": "none"},
-
         # Customers
         {"name": "create_customer", "mock_only": False, "side_effects": "writes"},
         {"name": "get_customer", "mock_only": False, "side_effects": "none"},
         {"name": "update_customer", "mock_only": False, "side_effects": "writes"},
         {"name": "delete_customer", "mock_only": False, "side_effects": "writes"},
-
         # Items / inventory
         {"name": "create_item", "mock_only": False, "side_effects": "writes"},
         {"name": "get_item", "mock_only": False, "side_effects": "none"},
@@ -26,7 +24,6 @@ CAPABILITIES: dict[str, Any] = {
         {"name": "delete_item", "mock_only": False, "side_effects": "writes"},
         {"name": "get_stock_balance", "mock_only": False, "side_effects": "none"},
         {"name": "inventory_adjustment", "mock_only": False, "side_effects": "writes"},
-
         # Sales / orders
         {"name": "create_order", "mock_only": False, "side_effects": "writes"},
         {"name": "approve_order", "mock_only": False, "side_effects": "writes"},
@@ -36,19 +33,16 @@ CAPABILITIES: dict[str, Any] = {
         {"name": "get_order", "mock_only": False, "side_effects": "none"},
         {"name": "get_order_lines", "mock_only": False, "side_effects": "none"},
         {"name": "cancel_order", "mock_only": False, "side_effects": "writes"},
-
         # Invoices / AR
         {"name": "create_invoice", "mock_only": False, "side_effects": "writes"},
         {"name": "get_invoice", "mock_only": False, "side_effects": "none"},
         {"name": "get_unpaid_invoices", "mock_only": True, "side_effects": "none"},
         {"name": "list_invoices", "mock_only": True, "side_effects": "none"},
-
         # Payments
         {"name": "record_payment", "mock_only": False, "side_effects": "writes"},
         {"name": "list_invoice_payments", "mock_only": True, "side_effects": "none"},
         {"name": "get_payment", "mock_only": False, "side_effects": "none"},
         {"name": "refund_payment", "mock_only": False, "side_effects": "writes"},
-
         # Visibility helpers (mock-only today)
         {"name": "list_orders", "mock_only": True, "side_effects": "none"},
         {"name": "search_customers", "mock_only": True, "side_effects": "none"},
@@ -178,4 +172,3 @@ EXAMPLES_MD = """\
 2) `record_payment(invoice_id=..., amount=\"100.00\")`\n\
 3) `list_invoice_payments(invoice_id=...)`
 """
-

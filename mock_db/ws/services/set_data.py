@@ -3,6 +3,7 @@
 Each object handler is responsible for its own brain rules
 (see ws/objects/validators.py and per-object docstrings).
 """
+
 from __future__ import annotations
 
 import sqlite3

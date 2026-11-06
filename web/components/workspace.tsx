@@ -3,38 +3,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Chat, type ChatHandle, type Jump } from "@/components/chat";
 import { DataTable } from "@/components/data-table";
-import { Dialogs, type DialogState, NAME, type Runtime, RuntimeMenu, type Tool } from "@/components/runtime-menu";
+import { Dialogs, type DialogState, NAME, RuntimeMenu } from "@/components/runtime-menu";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tip } from "@/components/ui/tooltip";
 import { SearchIcon } from "lucide-react";
-import { type Row, type TableChanges, tableRows, turnChanges } from "@/lib/changes";
+import { type Row, type TableChanges, tableRows } from "@/lib/changes";
+import * as api from "@/lib/client";
+import type { Info, Runtime } from "@/lib/client";
 import {
-  API_DOWN, applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, stepChange, type TraceCall, type TurnResponse,
+  API_DOWN, applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, stepChange, type TraceCall, type Turn,
   type View,
 } from "@/lib/format";
 
 const TABLES = ["customers", "items", "orders", "order_items", "invoices_business", "payments"];
 
-interface Info {
-  runtime: Runtime;
-  escalation: boolean; // a failed Ollama tool call is rerun on Claude
-  mock: boolean;
-  keys: Record<string, string[]>;
-  tools: Record<string, Tool[]>;
-}
-
 type State =
   | { status: "loading" }
   | { status: "down" }
   | { status: "ok"; info: Info; db: Record<string, Row[]> | null }; // db null: no database (tools only)
-
-const getJson = <T,>(url: string) =>
-  fetch(url).then((r) => (r.ok ? (r.json() as Promise<T>) : Promise.reject(new Error(`${url}: HTTP ${r.status}`))));
-const post = (url: string, body: object = {}) =>
-  fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 /** Focus in a text field: the punctuation keys type there instead. */
 const isTyping = (t: EventTarget | null) =>
@@ -47,8 +36,8 @@ const focusTable = () => document.getElementById("table")?.focus();
 
 async function load(): Promise<State> {
   try {
-    const info = await getJson<Info>("/api/info");
-    return { status: "ok", info, db: info.mock ? await getJson<Record<string, Row[]>>("/api/db") : null };
+    const info = await api.info();
+    return { status: "ok", info, db: info.mock ? await api.tables() : null };
   } catch {
     return { status: "down" };
   }
@@ -125,20 +114,20 @@ export function Workspace() {
   const [onlyChanged, setOnlyChanged] = useState(false);
   const hasChanges = Object.keys(changes).length > 0;
   const changedOnly = onlyChanged && hasChanges;
-  async function onTurn(res: TurnResponse) {
-    if (!res.diff?.length) { // read-only turn: clear, no refetch (DESIGN.md → Large tables)
+  async function onTurn(res: Turn) {
+    if (!Object.keys(res.changes).length) { // read-only turn: clear, no refetch (DESIGN.md → Large tables)
       setChanges({});
       setOnlyChanged(false); // the box comes back unchecked with the next changes
       return;
     }
     try {
-      const db = await getJson<Record<string, Row[]>>("/api/db");
+      const db = await api.tables();
       setState((s) => (s.status === "ok" ? { ...s, db } : s));
     } catch {
       setState({ status: "down" });
       return; // Retry reloads tables these changes didn't come from
     }
-    setChanges(turnChanges(res.diff)); // with the new rows, so a deleted row isn't listed twice
+    setChanges(res.changes); // with the new rows, so a deleted row isn't listed twice
   }
 
   const db = state.status === "ok" ? state.db : null;
@@ -182,12 +171,15 @@ export function Workspace() {
     setChat((c) => ({ key: c.key + 1, notice }));
   };
   async function newChat(to: Runtime) {
-    let res: Info & { error?: string };
+    let res: api.ChatInfo & { error?: string };
     try {
-      res = await (await post("/api/chat", { runtime: to })).json();
-    } catch {
-      setState({ status: "down" });
-      return;
+      res = await api.newChat(to);
+    } catch (e) {
+      if (!(e instanceof api.ClientError && e.body.runtime)) {
+        setState({ status: "down" });
+        return;
+      }
+      res = e.body as api.ChatInfo & { error?: string }; // e.g. 503: Ollama not running, the switch still happened
     }
     setState((s) => (s.status === "ok" ? { ...s, info: { ...s.info, runtime: res.runtime } } : s));
     // A runtime that didn't start (e.g. Ollama not running) is retried on the next turn, which shows the error with Retry.
@@ -195,7 +187,7 @@ export function Workspace() {
   }
   async function reset() {
     try {
-      if (!(await post("/api/reset")).ok) throw new Error("reset failed");
+      await api.reset();
     } catch {
       setState({ status: "down" });
       return;

@@ -8,6 +8,7 @@ it as a read-only preview and just delegate to getData -- the incoming
 Limited to CUSTOMER / ORDER / ITEM to mirror the real-world surface where
 PAYMENT / INVOICE don't have meaningful pre-persist calculations.
 """
+
 from __future__ import annotations
 
 import sqlite3

@@ -6,6 +6,7 @@ Layer contract:
     - Let SoftOneError propagate.
     - Raise ValueError for malformed numeric inputs.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -47,10 +48,7 @@ def orderitems_add_line(
         if "unit_price" in fields and "price" not in fields:
             fields["price"] = fields.pop("unit_price")
         if "product_id" not in fields or "quantity" not in fields:
-            raise ValueError(
-                "orderitems_add_line requires either `line` or "
-                "(`item_id`/`product_id` and `quantity`)."
-            )
+            raise ValueError("orderitems_add_line requires either `line` or (`item_id`/`product_id` and `quantity`).")
         line = {
             "product_id": fields["product_id"],
             "quantity": fields["quantity"],

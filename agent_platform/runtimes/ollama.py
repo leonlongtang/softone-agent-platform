@@ -11,11 +11,12 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent_platform.gate import WriteGate
+from agent_platform.gate import WriteGate, is_write
 from agent_platform.mcp_tools import CONNECT_TOOL_NAME, MCP_SERVER_NAME, mcp_server_params
 from agent_platform.prompting import PromptPolicy, build_system_prompt
 from agent_platform.runtimes.base import BAD_TOOL_INPUT, HISTORY_KEY, RunContext, RuntimeAdapter, ToolError
 from agent_platform.specs import AgentSpec
+from softone_wrapper.domain.errors import NOT_AUTHENTICATED_CODES, SESSION_EXPIRED_CODES
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +79,7 @@ def _build_retry_question(tool_name: str, error: dict[str, Any]) -> str:
         return f"{message} Only {available} available. Do you want me to retry with {available}, or cancel?"
     if "outstanding" in details:
         outstanding = details.get("outstanding")
-        return (
-            f"{message} Outstanding is {outstanding}. Do you want me to retry with {outstanding}, or cancel?"
-        )
+        return f"{message} Outstanding is {outstanding}. Do you want me to retry with {outstanding}, or cancel?"
     if "max" in details:
         max_value = details.get("max")
         return f"{message} The maximum allowed is {max_value}. Do you want me to retry with {max_value}, or cancel?"
@@ -89,10 +88,13 @@ def _build_retry_question(tool_name: str, error: dict[str, Any]) -> str:
         return f"{message} The minimum allowed is {min_value}. Do you want me to retry with {min_value}, or cancel?"
 
     if details:
-        return (
-            f"{message} ({tool_name} details: {json.dumps(details, ensure_ascii=False)}) How do you want to proceed?"
-        )
+        return f"{message} ({tool_name} details: {json.dumps(details, ensure_ascii=False)}) How do you want to proceed?"
     return f"{message} How do you want to proceed?"
+
+
+def _is_session_error(err: dict[str, Any]) -> bool:
+    """An expired or missing SoftOne login, by the wrapper's own code table (never by message text)."""
+    return err.get("code") in SESSION_EXPIRED_CODES | NOT_AUTHENTICATED_CODES
 
 
 def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
@@ -127,16 +129,12 @@ def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
                         "message": str(exc),
                         "details": {"tool": str(tool.name)},
                     },
+                    kind="bad_input",
                 ) from exc
             except Exception as exc:
                 attempts += 1
                 is_transient = isinstance(exc, (TimeoutError, ConnectionError, OSError))
-                is_connect = tool.name == CONNECT_TOOL_NAME
-                is_read = (
-                    tool.name.startswith(("get_", "list_", "search_"))
-                    or tool.name in {"check_inventory", "get_stock_balance", "get_context"}
-                )
-                can_retry = attempts <= 1 and is_transient and (is_connect or is_read)
+                can_retry = attempts <= 1 and is_transient and not is_write(tool.name)
                 if debug:
                     logger.debug("[mcp] !! %s\n%s", tool.name, traceback.format_exc())
                 if not can_retry:
@@ -151,7 +149,8 @@ def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
             err_obj = result.get("error")
             if not isinstance(err_obj, dict):
                 err_obj = {"message": str(err_obj) if err_obj else "Tool failed."}
-            raise ToolError(tool_name=str(tool.name), error=err_obj)
+            kind = "session" if _is_session_error(err_obj) else "other"
+            raise ToolError(tool_name=str(tool.name), error=err_obj, kind=kind)
         return result
 
     return StructuredTool.from_function(
@@ -219,6 +218,7 @@ class OllamaRuntime(RuntimeAdapter):
     _session_cm: Any | None = None
     _session: Any | None = None
     _raw_tools_by_name: dict[str, Any] | None = None
+    _session_id: str | None = None  # the SoftOne login; one runtime per Chat, so it lives here
 
     async def __aenter__(self) -> OllamaRuntime:
         # Lazy imports keep CLI startup fast.
@@ -246,16 +246,15 @@ class OllamaRuntime(RuntimeAdapter):
         self._session = None
         self._raw_tools_by_name = None
 
-    async def ensure_connected(self, context: RunContext) -> None:
-        if context.session_id:
-            return
+    async def _ensure_session(self) -> str:
+        if self._session_id:
+            return self._session_id
         if not self._raw_tools_by_name:
             raise RuntimeError("OllamaRuntime not initialized (use `async with`).")
-        sid = await _connect(self._raw_tools_by_name, debug=self.debug)
-        if sid:
-            context.session_id = sid
-            return
-        raise RuntimeError("Startup connect failed (no session_id). Check SOFTONE_* configuration.")
+        self._session_id = await _connect(self._raw_tools_by_name, debug=self.debug)
+        if not self._session_id:
+            raise RuntimeError("Startup connect failed (no session_id). Check SOFTONE_* configuration.")
+        return self._session_id
 
     def _system_prompt(self, *, spec: AgentSpec, session_id: str) -> str:
         session_instruction = (
@@ -290,41 +289,46 @@ class OllamaRuntime(RuntimeAdapter):
             )
 
         raw_tools = [
-            t
-            for name, t in self._raw_tools_by_name.items()
-            if name in requested and name != CONNECT_TOOL_NAME
+            t for name, t in self._raw_tools_by_name.items() if name in requested and name != CONNECT_TOOL_NAME
         ]
         return [_wrap_tool(t, gate=gate, debug=self.debug) for t in raw_tools]
 
-    async def run_turn(self, *, spec: AgentSpec, user_text: str, context: RunContext) -> str:
+    async def _attempt(self, spec: AgentSpec, messages: list[Any], context: RunContext) -> str:
         from langchain.agents import create_agent
-        from langchain_core.messages import AIMessage, HumanMessage
         from langchain_ollama import ChatOllama
 
-        await self.ensure_connected(context)
-        assert context.session_id
+        agent = create_agent(
+            ChatOllama(model=self.model),
+            self._business_tools_for_spec(spec, context.gate),
+            system_prompt=self._system_prompt(spec=spec, session_id=await self._ensure_session()),
+        )
+        result = await agent.ainvoke({"messages": messages})
+        context.artifacts[HISTORY_KEY] = result["messages"]
+        return str(result["messages"][-1].content)
+
+    async def run_turn(self, *, spec: AgentSpec, user_text: str, context: RunContext) -> str:
+        from langchain_core.messages import AIMessage, HumanMessage
 
         # One conversation shared by all departments, so a handoff (sales creates
         # order 5003, then "invoice that order" goes to finance) keeps its context.
         # Only the system prompt and tool allowlist change per department.
-        messages: list[Any] = context.artifacts.get(HISTORY_KEY) or []
-        agent = create_agent(
-            ChatOllama(model=self.model),
-            self._business_tools_for_spec(spec, context.gate),
-            system_prompt=self._system_prompt(spec=spec, session_id=context.session_id),
-        )
-
-        messages.append(HumanMessage(content=user_text))
+        messages: list[Any] = [*(context.artifacts.get(HISTORY_KEY) or []), HumanMessage(content=user_text)]
         try:
-            result = await agent.ainvoke({"messages": messages})
-            context.artifacts[HISTORY_KEY] = result["messages"]
-            return str(result["messages"][-1].content)
+            try:
+                return await self._attempt(spec, messages, context)
+            except ToolError as te:
+                if te.kind != "session":
+                    raise
+                # The login expired: reconnect and rerun the turn once.
+                logger.debug("[ollama_runtime] session expired; reconnecting and rerunning the turn")
+                self._session_id = None
+                context.gate.retry_turn()
+                return await self._attempt(spec, messages, context)
         except ToolError as te:
-            messages.append(AIMessage(content=_build_retry_question(tool_name=te.tool_name, error=te.error)))
-            context.artifacts[HISTORY_KEY] = messages
+            retry = AIMessage(content=_build_retry_question(tool_name=te.tool_name, error=te.error))
+            context.artifacts[HISTORY_KEY] = [*messages, retry]
             raise
         except Exception:
             if self.debug:
                 logger.exception("OllamaRuntime.run_turn failed")
             raise
-

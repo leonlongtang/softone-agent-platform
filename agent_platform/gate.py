@@ -19,7 +19,6 @@ WRITE_TOOLS = frozenset(
         "workflow_create_order", "workflow_order_to_cash",
     }
 )  # fmt: skip
-READ_PREFIXES = ("get_", "list_", "search_", "check_")
 
 APPROVAL_WORDS = {"yes", "y", "confirm", "confirmed", "approve", "proceed", "ok"}
 
@@ -29,6 +28,11 @@ NEEDS_CONFIRMATION = (
 )
 
 ALREADY_DONE = "`{tool}` already ran with these exact arguments this turn. Do not repeat it; use its earlier result."
+
+
+def is_write(tool: str) -> bool:
+    """The one read/write classifier: everything not in WRITE_TOOLS is a read."""
+    return tool in WRITE_TOOLS
 
 
 def is_approval(text: str) -> bool:
@@ -67,6 +71,10 @@ class WriteGate(dict):
         self["approved"] = list(self.blocked) if is_approval(user_text) else []
         self.update(blocked={}, ran=[], trace=[])
 
+    def retry_turn(self) -> None:
+        """Before rerunning this turn (after a reconnect): forget its reads and blocks, keep the writes that ran."""
+        self.update(blocked={}, trace=[c for c in self.trace if c["status"] == "ran"])
+
     def check(self, tool: str, args: dict[str, Any]) -> str | None:
         """Return None if the call may run, else a refusal message for the model."""
         intent = {k: v for k, v in args.items() if k != "session_id"}  # session ids are plumbing
@@ -80,7 +88,7 @@ class WriteGate(dict):
         return None
 
     def _decide(self, tool: str, intent: dict[str, Any]) -> str:
-        if tool not in WRITE_TOOLS:
+        if not is_write(tool):
             return "read"
         call = f"{tool}:{json.dumps(intent, sort_keys=True, default=str)}"
         if call in self.ran:
@@ -94,12 +102,17 @@ class WriteGate(dict):
             return "ran"
         return "blocked"
 
-    def pending_summary(self) -> str:
-        if not self.blocked:
-            return ""
-        calls = "\n".join(
-            f"  - {tool}({json.dumps({k: v for k, v in args.items() if k != 'session_id'}, default=str)})"
+    def pending(self) -> list[dict[str, Any]]:
+        """This turn's blocked calls as data: [{tool, args}], args without session_id (as in the trace)."""
+        return [
+            {"tool": tool, "args": {k: v for k, v in args.items() if k != "session_id"}}
             for tool, args in self.blocked.items()
-        )
-        return f"Needs your approval:\n{calls}\nReply `yes` to run it."
+        ]
 
+
+def pending_summary(pending: list[dict[str, Any]]) -> str:
+    """The Pending write as text, for text-only chats (the CLI, the `messages` channel)."""
+    if not pending:
+        return ""
+    calls = "\n".join(f"  - {c['tool']}({json.dumps(c['args'], default=str)})" for c in pending)
+    return f"Needs your approval:\n{calls}\nReply `yes` to run it."

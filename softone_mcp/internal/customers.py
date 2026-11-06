@@ -6,6 +6,7 @@ Layer contract:
     - Raise SoftOneError on any SoftOne-level failure (just let it propagate).
     - Never import or call ok()/err(). The envelope is owned by agent_tools.
 """
+
 from __future__ import annotations
 
 from typing import Any

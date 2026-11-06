@@ -1,4 +1,5 @@
 """MCP-facing business paths and new tools (mock DB + SoftOneClient.mock)."""
+
 from __future__ import annotations
 
 import os

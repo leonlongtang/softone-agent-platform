@@ -8,6 +8,7 @@ Layer contract:
       `invoices_business` table directly (useful for "list unpaid invoices"
       style tools). In non-mock mode, the filter branch raises SoftOneError.
 """
+
 from __future__ import annotations
 
 from typing import Any

@@ -18,6 +18,7 @@ Why this layout (and not session-shared DB):
       invoices. Sharing one DB makes test ordering matter. Function-scoped
       isolation is worth the few-ms-per-test overhead.
 """
+
 from __future__ import annotations
 
 import shutil

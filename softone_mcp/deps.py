@@ -24,4 +24,3 @@ def err(e: SoftOneError, *, meta: dict[str, Any] | None = None) -> dict[str, Any
 def build_client() -> SoftOneClient:
     cfg = load_config()
     return SoftOneClient.mock() if cfg.mock else SoftOneClient()
-

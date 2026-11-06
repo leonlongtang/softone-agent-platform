@@ -158,7 +158,8 @@ uv sync                          # or: python -m venv .venv && pip install -e . 
 uv run pytest -q                 # 141 tests, ~3s, no LLM needed
 
 ollama pull qwen2.5:7b           # tested default (4.7 GB); other tool-calling models: set OLLAMA_MODEL
-uv run python -m agent_platform.web                               # web UI: http://127.0.0.1:8000
+uv run python -m agent_platform.web                               # web API on :8000, then:
+npm --prefix web install && npm --prefix web run dev              # web UI: http://localhost:3000
 uv run python -m agent_platform                                   # terminal chat
 uv run python -m agent_platform "List unpaid invoices for customer 47"   # one turn
 uv run python -m agent_platform --runtime claude "..."            # Claude only (needs ANTHROPIC_API_KEY)

@@ -11,6 +11,7 @@ LLMs generate tool-calls far more reliably against flat JSON schemas than
 against nested ones. Validation/descriptions are preserved via
 `Annotated[type, Field(...)]`.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -47,12 +48,8 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             Field(description="Session obtained from softone_connect_default()."),
         ],
         name: Annotated[str, Field(description="Item name.")],
-        price: Annotated[
-            str, Field(description="Price. Leave empty to omit.")
-        ] = "",
-        stock: Annotated[
-            str, Field(description="Stock. Leave empty to omit.")
-        ] = "",
+        price: Annotated[str, Field(description="Price. Leave empty to omit.")] = "",
+        stock: Annotated[str, Field(description="Stock. Leave empty to omit.")] = "",
     ) -> dict[str, Any]:
         code = f"IT-{slug(name)[:16]}-{deterministic_suffix(name)}"
         items_repo = SoftOneItemRepository(client, session_id)
@@ -90,11 +87,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     ) -> dict[str, Any]:
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         items_repo = SoftOneItemRepository(client, session_id)
 
@@ -107,11 +106,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         # 2. Delegate to the business layer and envelope the result.
@@ -123,11 +124,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except ItemNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"item_id": e.item_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"item_id": e.item_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -153,11 +156,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     ) -> dict[str, Any]:
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         items_repo = SoftOneItemRepository(client, session_id)
 
@@ -169,11 +174,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         patch: dict[str, Any] = {}
@@ -189,11 +196,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             data = update_item_bl(items_repo, key=key, **patch)
             return ok(data)
         except ItemNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"item_id": e.item_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"item_id": e.item_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -216,11 +225,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     ) -> dict[str, Any]:
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         items_repo = SoftOneItemRepository(client, session_id)
 
@@ -232,11 +243,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         try:
@@ -244,11 +257,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             data = delete_item_bl(items_repo, key=key)
             return ok(data)
         except ItemNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"item_id": e.item_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"item_id": e.item_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -271,11 +286,13 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     ) -> dict[str, Any]:
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         items_repo = SoftOneItemRepository(client, session_id)
 
@@ -287,22 +304,26 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         try:
             data = get_stock_balance_bl(items_repo, key=key)
             return ok(data)
         except ItemNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"item_id": e.item_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"item_id": e.item_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -375,8 +396,7 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     @mcp.tool(
         name="inventory_adjustment",
         description=(
-            "Adjust stock for an item by delta_qty (integer). "
-            "Guarded: cannot make stock negative or below reserved."
+            "Adjust stock for an item by delta_qty (integer). Guarded: cannot make stock negative or below reserved."
         ),
     )
     def inventory_adjustment_tool(
@@ -401,20 +421,24 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
 
         q = name_or_id.strip()
         if not q:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid request. name_or_id is required.",
-                {"name_or_id": name_or_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid request. name_or_id is required.",
+                    {"name_or_id": name_or_id},
+                )
+            )
 
         try:
             parsed_delta = int(delta_qty)
         except ValueError:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid delta_qty. Expected an integer.",
-                {"delta_qty": delta_qty},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid delta_qty. Expected an integer.",
+                    {"delta_qty": delta_qty},
+                )
+            )
 
         items_repo = SoftOneItemRepository(client, session_id)
 
@@ -426,36 +450,40 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             except SoftOneError as e:
                 return err(e)
             if found is None:
-                return err(SoftOneError(
-                    SOFTONE_NOT_FOUND_CODE,
-                    "Invalid request, Data does not exist.",
-                    {"name_or_id": q},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_NOT_FOUND_CODE,
+                        "Invalid request, Data does not exist.",
+                        {"name_or_id": q},
+                    )
+                )
             key = found
 
         try:
             data = inventory_adjustment_bl(items_repo, key=key, delta_qty=parsed_delta)
             return ok(data)
         except ItemNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"item_id": e.item_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"item_id": e.item_id},
+                )
+            )
         except ValueError as ve:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(ve),
-                {"item_id": key, "delta_qty": parsed_delta},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(ve),
+                    {"item_id": key, "delta_qty": parsed_delta},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
     @mcp.tool(
         name="search_items",
-        description=(
-            "Search items by name/code (mock-only). Returns a list of matches with ids."
-        ),
+        description=("Search items by name/code (mock-only). Returns a list of matches with ids."),
     )
     def search_items_tool(
         session_id: Annotated[
@@ -476,21 +504,25 @@ def register_item_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             try:
                 lim = int(limit)
             except ValueError:
-                return err(SoftOneError(
-                    SOFTONE_BAD_INPUT_CODE,
-                    "Invalid limit. Expected an integer.",
-                    {"limit": limit},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_BAD_INPUT_CODE,
+                        "Invalid limit. Expected an integer.",
+                        {"limit": limit},
+                    )
+                )
 
         items_repo = SoftOneItemRepository(client, session_id)
         try:
             data = search_items_bl(items_repo, q=q, limit=lim)
             return ok(data)
         except ValueError as ve:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(ve),
-                {"q": q, "limit": lim},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(ve),
+                    {"q": q, "limit": lim},
+                )
+            )
         except SoftOneError as e:
             return err(e)

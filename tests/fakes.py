@@ -15,12 +15,13 @@ class FakeOrchestrator:
 
     def __init__(self, db: Path) -> None:
         self.db = db
+        self.texts: list[str] = []  # every user_text that reached the agent
 
     async def ainvoke(self, state: dict) -> dict:
+        self.texts.append(state["user_text"])
         gate = state["artifacts"].setdefault(GATE_KEY, WriteGate())
         gate.start_turn(state["user_text"])
         if gate.check("create_order", {"customer_id": 47}) is None:
             with closing(sqlite3.connect(self.db)) as conn, conn:  # commit, then close (Windows locks open files)
                 conn.execute("INSERT INTO orders (id, customer_id, status, total) VALUES (5006, 47, 'Draft', 0)")
-        response = f"done\n\n{gate.pending_summary()}" if gate.blocked else "done"  # as graph.run_agent_node does
-        return {**state, "route": "sales", "runtime": "fake", "response": response}
+        return {**state, "route": "sales", "runtime": "fake", "response": "done", "pending": gate.pending()}

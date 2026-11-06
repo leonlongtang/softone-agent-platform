@@ -3,6 +3,7 @@
 Owns the DB-path constants because the entire WS layer talks to one SQLite
 file and `_connect` is the only place that opens it.
 """
+
 from __future__ import annotations
 
 import secrets
@@ -47,8 +48,7 @@ def _require_session(conn: sqlite3.Connection, client_id: str) -> sqlite3.Row:
     Used by every authenticated service handler at the top of router dispatch.
     """
     row = conn.execute(
-        "SELECT account_id, expires_at, is_final, company, branch, module, refid "
-        "FROM sessions WHERE client_id = ?",
+        "SELECT account_id, expires_at, is_final, company, branch, module, refid FROM sessions WHERE client_id = ?",
         (client_id,),
     ).fetchone()
     if row is None:
@@ -65,6 +65,7 @@ def _require_session(conn: sqlite3.Connection, client_id: str) -> sqlite3.Row:
 # ---------------------------------------------------------------------------
 # Auth services
 # ---------------------------------------------------------------------------
+
 
 def login(
     *,
@@ -132,9 +133,15 @@ def login(
                 VALUES (?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    final_client_id, account_id, 1,
-                    now.isoformat(), expires.isoformat(),
-                    COMPANY, BRANCH, MODULE, REFID,
+                    final_client_id,
+                    account_id,
+                    1,
+                    now.isoformat(),
+                    expires.isoformat(),
+                    COMPANY,
+                    BRANCH,
+                    MODULE,
+                    REFID,
                 ),
             )
             conn.commit()
@@ -231,9 +238,15 @@ def authenticate(
             VALUES (?,?,?,?,?,?,?,?,?)
             """,
             (
-                final_client_id, account_id, 1,
-                now.isoformat(), expires.isoformat(),
-                COMPANY, BRANCH, MODULE, REFID,
+                final_client_id,
+                account_id,
+                1,
+                now.isoformat(),
+                expires.isoformat(),
+                COMPANY,
+                BRANCH,
+                MODULE,
+                REFID,
             ),
         )
         conn.commit()

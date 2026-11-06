@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 
 import pytest
 
@@ -11,6 +12,9 @@ pytest.importorskip("langgraph")
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
+from agent_platform import __main__ as cli
+from agent_platform import gate
+from agent_platform import graph as graph_module
 from agent_platform.graph import build_orchestrator
 from agent_platform.runtimes.base import RunContext
 from tests.test_agent_layer import FakeRuntime
@@ -48,9 +52,13 @@ def test_blocked_write_survives_checkpoint_and_runs_once_after_yes(key: str, cap
     def say(text: str) -> dict:
         return _say(app, cfg, key, text)
 
-    assert "Needs your approval" in say("create an order for customer 47")["response"]
+    blocked = say("create an order for customer 47")
+    assert blocked["response"] == "waiting for approval"  # the summary is data, not a response suffix
+    assert blocked["pending"] == [{"tool": "create_order", "args": {"customer_id": 47}}]
+    assert blocked["messages"][-1].content.endswith(gate.pending_summary(blocked["pending"]))
     assert CountingWriter.writes == 0
-    assert say("yes")["response"] == "order 5003 created"
+    ran = say("yes")
+    assert ran["response"] == "order 5003 created" and ran["pending"] == []
     assert CountingWriter.writes == 1
     assert say("yes")["response"].startswith("waiting for approval")  # approval was single use
     assert CountingWriter.writes == 1
@@ -75,6 +83,7 @@ def test_messages_input_answers_like_user_text_and_appends_ai_message() -> None:
     by_msgs = asyncio.run(app().ainvoke({"messages": [HumanMessage("list unpaid invoices")]}))
     assert by_msgs["route"] == by_text["route"] == "finance"
     assert by_msgs["response"] == by_text["response"] == "finance: list unpaid invoices"
+    assert by_msgs["pending"] == by_text["pending"] == []
     last = by_msgs["messages"][-1]
     assert isinstance(last, AIMessage) and last.content == by_msgs["response"]
 
@@ -85,3 +94,14 @@ def test_ai_message_carries_the_turns_tool_calls() -> None:
     [call] = state["messages"][-1].tool_calls
     assert call["name"] == "create_order" and call["args"] == {"customer_id": 47}
     assert [type(m) for m in state["messages"]] == [HumanMessage, AIMessage]
+
+
+def test_cli_one_shot_prints_the_reply_then_the_pending_write(monkeypatch, capsys) -> None:
+    @asynccontextmanager
+    async def fake_open(runtime: str, *, debug: bool = False):
+        yield build_orchestrator(ollama=CountingWriter("ollama"), claude=FakeRuntime("claude"))
+
+    monkeypatch.setattr(graph_module, "open_orchestrator", fake_open)
+    asyncio.run(cli._chat(prompt="create an order for customer 47", runtime="ollama", debug=False))
+    out = capsys.readouterr().out
+    assert out.index("waiting for approval") < out.index('Needs your approval:\n  - create_order({"customer_id": 47})')

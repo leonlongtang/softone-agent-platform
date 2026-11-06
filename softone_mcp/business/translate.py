@@ -32,4 +32,3 @@ def translate_softone_not_found(
         if e.code == SOFTONE_NOT_FOUND_CODE:
             raise exc_factory() from e
         raise
-

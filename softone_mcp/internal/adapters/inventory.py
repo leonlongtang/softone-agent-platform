@@ -44,12 +44,7 @@ class SoftOneInventoryService(InventoryService):
             )
             running_reserved[item_id] = new_reserved
 
-        return {
-            "snapshots": [
-                {"item_id": item_id, "prev_reserved": prev}
-                for item_id, prev in prev_by_item.items()
-            ]
-        }
+        return {"snapshots": [{"item_id": item_id, "prev_reserved": prev} for item_id, prev in prev_by_item.items()]}
 
     def rollback(self, *, token: ReservationToken) -> None:
         # Best-effort: never mask original errors.
@@ -118,4 +113,3 @@ class SoftOneInventoryService(InventoryService):
                 stock=max(0, current_stock - qty),
                 reserved=max(0, current_reserved - qty),
             )
-
