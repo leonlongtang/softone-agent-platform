@@ -25,6 +25,7 @@ class SoftOneError(Exception):
 INVALID_CREDENTIALS_CODES = frozenset({-2, -10, 1001})
 SESSION_EXPIRED_CODES = frozenset({-101, -7, 13, 213})
 NOT_AUTHENTICATED_CODES = frozenset({-1})
+NOT_FOUND_CODES = frozenset({2001})  # "Data does not exist"
 
 
 class InvalidCredentials(SoftOneError):
