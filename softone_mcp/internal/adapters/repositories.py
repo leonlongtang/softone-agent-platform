@@ -210,4 +210,3 @@ class SoftOnePaymentRepository(PaymentRepository):
 
     def list_for_invoice(self, *, invoice_id: int) -> list[dict[str, Any]]:
         return payments_list_for_invoice(self._client, self._session_id, invoice_id)
-

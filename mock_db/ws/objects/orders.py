@@ -6,6 +6,7 @@ Owns the brain rules around orders:
     - per-line item existence + raw stock check
     - total recompute from lines
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -98,8 +99,7 @@ def set_order(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> dict[
         if requested_status not in ALLOWED_ORDER_STATUSES:
             raise WsError(
                 WS_BUSINESS_RULE,
-                f"Invalid order status '{requested_status}'. "
-                f"Allowed: {list(ALLOWED_ORDER_STATUSES)}",
+                f"Invalid order status '{requested_status}'. Allowed: {list(ALLOWED_ORDER_STATUSES)}",
             )
         (mx,) = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM orders").fetchone()
         order_id = int(mx)
@@ -112,9 +112,7 @@ def set_order(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> dict[
         # transition is legal.
         order_id = assert_order_exists(conn, key)
         if "STATUS" in order_row:
-            cur_row = conn.execute(
-                "SELECT status FROM orders WHERE id = ?", (order_id,)
-            ).fetchone()
+            cur_row = conn.execute("SELECT status FROM orders WHERE id = ?", (order_id,)).fetchone()
             current = str(cur_row["status"])
             new = str(order_row["STATUS"])
             assert_order_status_transition(current, new)
@@ -125,9 +123,7 @@ def set_order(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> dict[
         conn.execute("DELETE FROM order_items WHERE order_id=?", (order_id,))
         for product_id, qty, price in pending_lines:
             if price is None:
-                item = conn.execute(
-                    "SELECT price FROM items WHERE id=?", (product_id,)
-                ).fetchone()
+                item = conn.execute("SELECT price FROM items WHERE id=?", (product_id,)).fetchone()
                 price = float(item["price"]) if item else 0.0
             conn.execute(
                 "INSERT INTO order_items(order_id, product_id, quantity, price) VALUES (?,?,?,?)",
@@ -147,7 +143,9 @@ def set_order(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> dict[
 
 def del_order(conn: sqlite3.Connection, key: Any) -> dict[str, Any]:
     cur = delete_with_fk_guard(
-        conn, "DELETE FROM orders WHERE id = ?", (int(key),),
+        conn,
+        "DELETE FROM orders WHERE id = ?",
+        (int(key),),
         what=f"order {int(key)}",
     )
     if cur.rowcount == 0:

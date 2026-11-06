@@ -7,6 +7,7 @@ without changes.
 
 If you are writing new code, prefer importing from `mock_db.ws` directly.
 """
+
 from __future__ import annotations
 
 from .ws import WsError, authenticate, handle_request, login

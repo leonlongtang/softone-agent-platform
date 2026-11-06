@@ -51,4 +51,3 @@ def raise_for_softone_error(resp: dict[str, Any]) -> None:
         raise InvalidRequest(code, message, details)
 
     raise SoftOneError(code, message, details)
-

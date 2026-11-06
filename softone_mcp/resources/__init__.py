@@ -6,4 +6,3 @@ These resources are intentionally:
 - parameterless (no session_id, no DB access)
 - non-sensitive (no tenant data, no secrets)
 """
-

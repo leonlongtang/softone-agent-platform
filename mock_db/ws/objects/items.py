@@ -1,4 +1,5 @@
 """ITEM (product/SKU) object handlers."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -81,7 +82,9 @@ def set_item(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> dict[s
 
 def del_item(conn: sqlite3.Connection, key: Any) -> dict[str, Any]:
     cur = delete_with_fk_guard(
-        conn, "DELETE FROM items WHERE id = ?", (int(key),),
+        conn,
+        "DELETE FROM items WHERE id = ?",
+        (int(key),),
         what=f"item {int(key)}",
     )
     if cur.rowcount == 0:

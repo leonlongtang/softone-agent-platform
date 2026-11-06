@@ -5,6 +5,7 @@ Reads the SoftOne `OBJECT` field and routes to the right object's
 SoftOne-shaped response normalization and `LOCATEINFO` filtering where
 relevant.
 """
+
 from __future__ import annotations
 
 import sqlite3

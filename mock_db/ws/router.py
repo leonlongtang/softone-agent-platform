@@ -9,6 +9,7 @@ pre-validated session.
 Adding a new service is a one-line entry in `SERVICES` plus the handler
 file.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -56,9 +57,7 @@ SERVICES: dict[str, ServiceHandler] = {
 }
 
 
-def handle_request(
-    payload: dict[str, Any], *, db_path: Path = DEFAULT_DB_PATH
-) -> dict[str, Any]:
+def handle_request(payload: dict[str, Any], *, db_path: Path = DEFAULT_DB_PATH) -> dict[str, Any]:
     """Top-level entrypoint. Takes a SoftOne-shaped payload (with `service`)
     and returns the matching response dict. Raises `WsError` for any
     SoftOne-style failure -- the caller (e.g., the mock gateway) is

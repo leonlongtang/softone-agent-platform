@@ -5,6 +5,7 @@ Layer contract:
     - Return raw payloads. No MCP envelope.
     - Let SoftOneError propagate.
 """
+
 from __future__ import annotations
 
 from typing import Any

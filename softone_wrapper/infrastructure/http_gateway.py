@@ -51,4 +51,3 @@ class HttpGateway(SoftOneGateway):
             return json.loads(raw)
         except json.JSONDecodeError as e:
             raise InvalidRequest(-9, "Invalid JSON response", {"raw": raw[:500]}) from e
-

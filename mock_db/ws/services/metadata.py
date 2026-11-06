@@ -8,6 +8,7 @@ Covers four services that all return SoftOne schema info, no per-row CRUD:
 
 Each service signature is (payload, conn) -> response dict.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -18,16 +19,11 @@ from ..objects.customers import selector_lookup
 
 
 def get_objects_service(payload: dict[str, Any], conn: sqlite3.Connection) -> dict[str, Any]:
-    rows = conn.execute(
-        "SELECT name, type, caption FROM business_objects ORDER BY name"
-    ).fetchall()
+    rows = conn.execute("SELECT name, type, caption FROM business_objects ORDER BY name").fetchall()
     return {
         "success": True,
         "count": len(rows),
-        "objects": [
-            {"name": r["name"], "type": r["type"], "caption": r["caption"]}
-            for r in rows
-        ],
+        "objects": [{"name": r["name"], "type": r["type"], "caption": r["caption"]} for r in rows],
     }
 
 

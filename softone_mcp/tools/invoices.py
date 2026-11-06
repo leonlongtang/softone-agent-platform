@@ -11,6 +11,7 @@ LLMs generate tool-calls far more reliably against flat JSON schemas than
 against nested ones. Validation/descriptions are preserved via
 `Annotated[type, Field(...)]`.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -45,21 +46,23 @@ from softone_wrapper.domain.errors import SoftOneError
 # MCP tool registrations
 # ---------------------------------------------------------------------------
 
+
 def register_invoice_tools(mcp: FastMCP, client: SoftOneClient) -> None:
 
-    @mcp.tool(name="create_invoice", description=(
-        "Generate an invoice from a Confirmed order. "
-        "Calculates due date from payment terms, deducts stock from inventory. "
-        "The order must be in Confirmed status — use approve_order first if needed."
-    ))
+    @mcp.tool(
+        name="create_invoice",
+        description=(
+            "Generate an invoice from a Confirmed order. "
+            "Calculates due date from payment terms, deducts stock from inventory. "
+            "The order must be in Confirmed status — use approve_order first if needed."
+        ),
+    )
     def create_invoice_tool(
         session_id: Annotated[
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        order_id: Annotated[
-            int, Field(description="ID of a Confirmed order to invoice")
-        ],
+        order_id: Annotated[int, Field(description="ID of a Confirmed order to invoice")],
         payment_terms: Annotated[
             str,
             Field(description="Payment terms: 'due_on_receipt', 'net_30', 'net_60', 'net_90'"),
@@ -78,27 +81,22 @@ def register_invoice_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except OrderNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"order_id": e.order_id}))
         except InvalidOrderStatusError as e:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(e),
-                {
-                    "order_id": e.order_id,
-                    "current_status": e.current,
-                    "expected_status": e.expected,
-                    "hint": (
-                        "Order must be Confirmed before invoicing. "
-                        "Call approve_order first."
-                    ),
-                },
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(e),
+                    {
+                        "order_id": e.order_id,
+                        "current_status": e.current,
+                        "expected_status": e.expected,
+                        "hint": ("Order must be Confirmed before invoicing. Call approve_order first."),
+                    },
+                )
+            )
         except InvalidPaymentTermsError as e:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE, str(e), {"terms": e.terms}
-            ))
+            return err(SoftOneError(SOFTONE_BAD_INPUT_CODE, str(e), {"terms": e.terms}))
         except SoftOneError as e:
             return err(e)
 
@@ -121,7 +119,7 @@ def register_invoice_tools(mcp: FastMCP, client: SoftOneClient) -> None:
         ],
         items: Annotated[
             list[dict[str, Any]],
-            Field(description="Order lines: [{\"item_name_or_id\": str, \"quantity\": int}, ...]."),
+            Field(description='Order lines: [{"item_name_or_id": str, "quantity": int}, ...].'),
         ],
         notes: Annotated[str, Field(description="Optional order notes")] = "",
         auto_approve: Annotated[
@@ -346,10 +344,12 @@ def register_invoice_tools(mcp: FastMCP, client: SoftOneClient) -> None:
 
         return ok({"order": order, "invoice": invoice}, meta=trace.meta())
 
-    @mcp.tool(name="get_unpaid_invoices", description=(
-        "Fetch all unpaid invoices. "
-        "Optionally filter by customer_id for a per-customer collections view."
-    ))
+    @mcp.tool(
+        name="get_unpaid_invoices",
+        description=(
+            "Fetch all unpaid invoices. Optionally filter by customer_id for a per-customer collections view."
+        ),
+    )
     def get_unpaid_invoices_tool(
         session_id: Annotated[
             str,
@@ -366,11 +366,13 @@ def register_invoice_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             try:
                 cust = int(customer_id)
             except ValueError:
-                return err(SoftOneError(
-                    SOFTONE_BAD_INPUT_CODE,
-                    "Invalid customer_id. Expected an integer.",
-                    {"customer_id": customer_id},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_BAD_INPUT_CODE,
+                        "Invalid customer_id. Expected an integer.",
+                        {"customer_id": customer_id},
+                    )
+                )
         else:
             cust = None
 
@@ -387,18 +389,14 @@ def register_invoice_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        invoice_id: Annotated[
-            int, Field(description="ID of the invoice to fetch")
-        ],
+        invoice_id: Annotated[int, Field(description="ID of the invoice to fetch")],
     ) -> dict[str, Any]:
         invoices_repo = SoftOneInvoiceRepository(client, session_id)
         try:
             data = get_invoice_bl(invoices_repo, invoice_id=invoice_id)
             return ok(data)
         except InvoiceNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE, str(e), {"invoice_id": e.invoice_id}
-            ))
+            return err(SoftOneError(SOFTONE_NOT_FOUND_CODE, str(e), {"invoice_id": e.invoice_id}))
         except SoftOneError as e:
             return err(e)
 
@@ -428,11 +426,13 @@ def register_invoice_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             try:
                 cust = int(customer_id)
             except ValueError:
-                return err(SoftOneError(
-                    SOFTONE_BAD_INPUT_CODE,
-                    "Invalid customer_id. Expected an integer.",
-                    {"customer_id": customer_id},
-                ))
+                return err(
+                    SoftOneError(
+                        SOFTONE_BAD_INPUT_CODE,
+                        "Invalid customer_id. Expected an integer.",
+                        {"customer_id": customer_id},
+                    )
+                )
 
         invoices_repo = SoftOneInvoiceRepository(client, session_id)
         try:

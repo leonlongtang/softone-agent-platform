@@ -36,4 +36,3 @@ class SoftOneSession:
     branch: Optional[str] = None
     module: Optional[str] = None
     refid: Optional[str] = None
-

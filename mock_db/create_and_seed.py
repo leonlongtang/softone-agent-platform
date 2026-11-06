@@ -319,16 +319,19 @@ def seed(conn: sqlite3.Connection) -> SeedResult:
     # orders/invoices below (orders 5001-5004 are Confirmed + invoiced, so
     # their stock is already decremented; order 5005 is Draft, so its qty is
     # still sitting in `reserved`).
-    conn.executemany("""
+    conn.executemany(
+        """
     INSERT INTO items(id, code, name, price, stock, reserved)
     VALUES (?,?,?,?,?,?)
-    """, [
-        (1001, "LAPTOP-14", "Laptop 14 inch", 1200, 14, 1),
-        (1002, "MOUSE-01", "Wireless Mouse", 25, 46, 0),
-        (1003, "KEYB-01", "Mechanical Keyboard", 80, 22, 0),
-        (1004, "MON-27", '27" 4K Monitor', 450, 18, 1),
-        (1005, "HDST-02", "USB Headset", 60, 37, 0),
-    ])
+    """,
+        [
+            (1001, "LAPTOP-14", "Laptop 14 inch", 1200, 14, 1),
+            (1002, "MOUSE-01", "Wireless Mouse", 25, 46, 0),
+            (1003, "KEYB-01", "Mechanical Keyboard", 80, 22, 0),
+            (1004, "MON-27", '27" 4K Monitor', 450, 18, 1),
+            (1005, "HDST-02", "USB Headset", 60, 37, 0),
+        ],
+    )
 
     # Orders business object metadata (for discovery).
     conn.execute(
@@ -349,38 +352,44 @@ def seed(conn: sqlite3.Connection) -> SeedResult:
     # which would break `approve_order` and `create_invoice` flows.
     # 5001-5004 are Confirmed (so they can be invoiced below); 5005 stays
     # Draft so the demo has at least one order waiting for approval.
-    conn.executemany("""
+    conn.executemany(
+        """
     INSERT INTO orders(id, customer_id, total, status)
     VALUES (?,?,?,?)
-    """, [
-        (5001, 47, 1225, "Confirmed"),
-        (5002, 49, 80, "Confirmed"),
-        (5003, 50, 1020, "Confirmed"),
-        (5004, 48, 295, "Confirmed"),
-        (5005, 51, 1650, "Draft"),
-    ])
+    """,
+        [
+            (5001, 47, 1225, "Confirmed"),
+            (5002, 49, 80, "Confirmed"),
+            (5003, 50, 1020, "Confirmed"),
+            (5004, 48, 295, "Confirmed"),
+            (5005, 51, 1650, "Draft"),
+        ],
+    )
 
     # Order lines — totals match `orders.total` above.
-    conn.executemany("""
+    conn.executemany(
+        """
     INSERT INTO order_items(order_id, product_id, quantity, price)
     VALUES (?,?,?,?)
-    """, [
-        # 5001: 1x laptop + 1x mouse = 1200 + 25 = 1225
-        (5001, 1001, 1, 1200),
-        (5001, 1002, 1, 25),
-        # 5002: 1x keyboard = 80
-        (5002, 1003, 1, 80),
-        # 5003: 2x monitor + 2x headset = 900 + 120 = 1020
-        (5003, 1004, 2, 450),
-        (5003, 1005, 2, 60),
-        # 5004: 3x mouse + 2x keyboard + 1x headset = 75 + 160 + 60 = 295
-        (5004, 1002, 3, 25),
-        (5004, 1003, 2, 80),
-        (5004, 1005, 1, 60),
-        # 5005 (Draft): 1x laptop + 1x monitor = 1200 + 450 = 1650
-        (5005, 1001, 1, 1200),
-        (5005, 1004, 1, 450),
-    ])
+    """,
+        [
+            # 5001: 1x laptop + 1x mouse = 1200 + 25 = 1225
+            (5001, 1001, 1, 1200),
+            (5001, 1002, 1, 25),
+            # 5002: 1x keyboard = 80
+            (5002, 1003, 1, 80),
+            # 5003: 2x monitor + 2x headset = 900 + 120 = 1020
+            (5003, 1004, 2, 450),
+            (5003, 1005, 2, 60),
+            # 5004: 3x mouse + 2x keyboard + 1x headset = 75 + 160 + 60 = 295
+            (5004, 1002, 3, 25),
+            (5004, 1003, 2, 80),
+            (5004, 1005, 1, 60),
+            # 5005 (Draft): 1x laptop + 1x monitor = 1200 + 450 = 1650
+            (5005, 1001, 1, 1200),
+            (5005, 1004, 1, 450),
+        ],
+    )
 
     # Invoices (business-side — maps to `invoices_business`, not the
     # e-invoice `invoices` table seeded above). 5 rows covering every
@@ -414,11 +423,11 @@ def seed(conn: sqlite3.Connection) -> SeedResult:
         VALUES (?,?,?,?)
         """,
         [
-            (1, 1, 1225.0, now.isoformat()),              # inv 1 paid in full
-            (2, 3, 500.0, now.isoformat()),               # inv 3 partial
-            (3, 3, 300.0, now.isoformat()),               # inv 3 still partial (800/1020)
-            (4, 4, 100.0, now.isoformat()),               # inv 4 partial
-            (5, 4, 195.0, now.isoformat()),               # inv 4 now fully paid (295/295)
+            (1, 1, 1225.0, now.isoformat()),  # inv 1 paid in full
+            (2, 3, 500.0, now.isoformat()),  # inv 3 partial
+            (3, 3, 300.0, now.isoformat()),  # inv 3 still partial (800/1020)
+            (4, 4, 100.0, now.isoformat()),  # inv 4 partial
+            (5, 4, 195.0, now.isoformat()),  # inv 4 now fully paid (295/295)
         ],
     )
 
@@ -434,21 +443,97 @@ def seed(conn: sqlite3.Connection) -> SeedResult:
 
 BULK_SEED = 20261105  # fixed, so every Reset DB gives identical bulk rows
 
-_GR_SURNAMES = ["Παπαδόπουλος", "Γεωργίου", "Νικολάου", "Οικονόμου", "Αντωνίου", "Δημητρίου", "Ιωάννου",
-                "Κωνσταντίνου", "Μιχαηλίδης", "Βασιλείου", "Αθανασίου", "Χριστοδούλου", "Καραγιάννης",
-                "Σταματόπουλος", "Πετρίδης", "Λαμπράκης", "Ζαχαρίου", "Μαυρίδης", "Τσακίρης", "Φωτίου"]
+_GR_SURNAMES = [
+    "Παπαδόπουλος",
+    "Γεωργίου",
+    "Νικολάου",
+    "Οικονόμου",
+    "Αντωνίου",
+    "Δημητρίου",
+    "Ιωάννου",
+    "Κωνσταντίνου",
+    "Μιχαηλίδης",
+    "Βασιλείου",
+    "Αθανασίου",
+    "Χριστοδούλου",
+    "Καραγιάννης",
+    "Σταματόπουλος",
+    "Πετρίδης",
+    "Λαμπράκης",
+    "Ζαχαρίου",
+    "Μαυρίδης",
+    "Τσακίρης",
+    "Φωτίου",
+]
 _GR_FORMS = ["Α.Ε.", "Ε.Π.Ε.", "Ο.Ε.", "& ΣΙΑ Ο.Ε.", "Ι.Κ.Ε."]
-_GR_STREETS = ["Λεωφ. Κηφισίας", "Ερμού", "Πατησίων", "Λεωφ. Συγγρού", "Αγίου Δημητρίου", "Τσιμισκή",
-               "Εγνατίας", "Λεωφ. Βουλιαγμένης", "Ακαδημίας", "Μητροπόλεως"]
-_GR_TOWNS = ["Μαρούσι", "Αθήνα", "Πειραιάς", "Θεσσαλονίκη", "Πάτρα", "Ηράκλειο", "Λάρισα", "Βόλος",
-             "Χαλάνδρι", "Γλυφάδα"]
-_EN_FIRST = ["Aegean", "Olympus", "Hellas", "Ionian", "Attica", "Cyclades", "Delta", "Pindos", "Crete",
-             "Macedonia", "Poseidon", "Athena", "Kronos", "Meteora", "Parnassus"]
-_EN_SECOND = ["Trading", "Logistics", "Retail", "Systems", "Supplies", "Foods", "Electronics", "Office",
-              "Hotels", "Pharma", "Marine", "Builders"]
+_GR_STREETS = [
+    "Λεωφ. Κηφισίας",
+    "Ερμού",
+    "Πατησίων",
+    "Λεωφ. Συγγρού",
+    "Αγίου Δημητρίου",
+    "Τσιμισκή",
+    "Εγνατίας",
+    "Λεωφ. Βουλιαγμένης",
+    "Ακαδημίας",
+    "Μητροπόλεως",
+]
+_GR_TOWNS = [
+    "Μαρούσι",
+    "Αθήνα",
+    "Πειραιάς",
+    "Θεσσαλονίκη",
+    "Πάτρα",
+    "Ηράκλειο",
+    "Λάρισα",
+    "Βόλος",
+    "Χαλάνδρι",
+    "Γλυφάδα",
+]
+_EN_FIRST = [
+    "Aegean",
+    "Olympus",
+    "Hellas",
+    "Ionian",
+    "Attica",
+    "Cyclades",
+    "Delta",
+    "Pindos",
+    "Crete",
+    "Macedonia",
+    "Poseidon",
+    "Athena",
+    "Kronos",
+    "Meteora",
+    "Parnassus",
+]
+_EN_SECOND = [
+    "Trading",
+    "Logistics",
+    "Retail",
+    "Systems",
+    "Supplies",
+    "Foods",
+    "Electronics",
+    "Office",
+    "Hotels",
+    "Pharma",
+    "Marine",
+    "Builders",
+]
 _EN_FORMS = ["SA", "Ltd", "Group", "Co."]
-_EN_STREETS = ["Panepistimiou", "Stadiou", "Vas. Sofias", "Kifisias Ave", "Syngrou Ave", "Mesogeion",
-               "Egnatia", "Tsimiski", "Akti Miaouli", "Alexandras Ave"]
+_EN_STREETS = [
+    "Panepistimiou",
+    "Stadiou",
+    "Vas. Sofias",
+    "Kifisias Ave",
+    "Syngrou Ave",
+    "Mesogeion",
+    "Egnatia",
+    "Tsimiski",
+    "Akti Miaouli",
+    "Alexandras Ave",
+]
 _EN_TOWNS = ["Athens", "Piraeus", "Thessaloniki", "Patras", "Heraklion", "Larissa", "Volos", "Kalamata"]
 # (code word, English name, Greek name, price range in whole euros)
 _ITEM_KINDS = [
@@ -490,15 +575,27 @@ def seed_bulk(conn: sqlite3.Connection, now: datetime) -> None:
             name = f"{first} {second} {rng.choice(_EN_FORMS)}"
             address = f"{n} {rng.choice(_EN_STREETS)}, {rng.choice(_EN_TOWNS)}"
             email = f"info@{first.lower()}-{second.lower()}.gr"
-        customers.append((trdr, str(trdr), name, f"{rng.randint(10**8, 10**9 - 1)}", email,
-                          f"+30210{rng.randint(10**6, 10**7 - 1)}", address, 0.0, days_ago(400, 1500).isoformat()))
+        customers.append(
+            (
+                trdr,
+                str(trdr),
+                name,
+                f"{rng.randint(10**8, 10**9 - 1)}",
+                email,
+                f"+30210{rng.randint(10**6, 10**7 - 1)}",
+                address,
+                0.0,
+                days_ago(400, 1500).isoformat(),
+            )
+        )
     conn.executemany(
         "INSERT INTO customers(trdr, code, name, afm, email, phone, address, balance, created_at)"
         " VALUES (?,?,?,?,?,?,?,?,?)",
         customers,
     )
-    conn.executemany("INSERT INTO cusextra(trdr, varchar01, varchar02) VALUES (?,?,?)",
-                     [(c[0], None, None) for c in customers])
+    conn.executemany(
+        "INSERT INTO cusextra(trdr, varchar01, varchar02) VALUES (?,?,?)", [(c[0], None, None) for c in customers]
+    )
 
     # Items 2001-2300: about a fifth Greek. Stock and reserved are filled in once the orders exist.
     items: dict[int, dict] = {}
@@ -507,9 +604,13 @@ def seed_bulk(conn: sqlite3.Connection, now: datetime) -> None:
         word, en, gr, (lo, hi) = rng.choice(_ITEM_KINDS)
         counters[word] = counters.get(word, 0) + 1
         num = counters[word]
-        items[item_id] = {"code": f"{word}-{num:02d}", "name": f"{gr if rng.random() < 0.2 else en} {num}",
-                          "price": rng.randint(lo, hi), "reserved": 0,
-                          "created_at": days_ago(400, 1500).isoformat()}
+        items[item_id] = {
+            "code": f"{word}-{num:02d}",
+            "name": f"{gr if rng.random() < 0.2 else en} {num}",
+            "price": rng.randint(lo, hi),
+            "reserved": 0,
+            "created_at": days_ago(400, 1500).isoformat(),
+        }
 
     # Skew: 20 big customers carry most orders; item popularity falls off by rank.
     trdrs = [c[0] for c in customers]
@@ -568,14 +669,26 @@ def seed_bulk(conn: sqlite3.Connection, now: datetime) -> None:
 
     conn.executemany(
         "INSERT INTO orders(id, customer_id, total, status, created_at) VALUES (?,?,?,?,?)",
-        [(o["id"], o["customer"], o["total"], o["status"], order_dates.get(o["id"]) or days_ago(0, 364).isoformat())
-         for o in orders],
+        [
+            (o["id"], o["customer"], o["total"], o["status"], order_dates.get(o["id"]) or days_ago(0, 364).isoformat())
+            for o in orders
+        ],
     )
     # Draft quantities sit in `reserved`; Confirmed ones already left `stock`, which never goes negative.
     conn.executemany(
         "INSERT INTO items(id, code, name, price, stock, reserved, created_at) VALUES (?,?,?,?,?,?,?)",
-        [(i, it["code"], it["name"], it["price"], rng.randint(0, 60) + it["reserved"], it["reserved"], it["created_at"])
-         for i, it in items.items()],
+        [
+            (
+                i,
+                it["code"],
+                it["name"],
+                it["price"],
+                rng.randint(0, 60) + it["reserved"],
+                it["reserved"],
+                it["created_at"],
+            )
+            for i, it in items.items()
+        ],
     )
     conn.executemany("INSERT INTO order_items(order_id, product_id, quantity, price) VALUES (?,?,?,?)", lines)
     conn.executemany(
@@ -624,4 +737,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

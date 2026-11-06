@@ -78,9 +78,7 @@ def _build_retry_question(tool_name: str, error: dict[str, Any]) -> str:
         return f"{message} Only {available} available. Do you want me to retry with {available}, or cancel?"
     if "outstanding" in details:
         outstanding = details.get("outstanding")
-        return (
-            f"{message} Outstanding is {outstanding}. Do you want me to retry with {outstanding}, or cancel?"
-        )
+        return f"{message} Outstanding is {outstanding}. Do you want me to retry with {outstanding}, or cancel?"
     if "max" in details:
         max_value = details.get("max")
         return f"{message} The maximum allowed is {max_value}. Do you want me to retry with {max_value}, or cancel?"
@@ -89,9 +87,7 @@ def _build_retry_question(tool_name: str, error: dict[str, Any]) -> str:
         return f"{message} The minimum allowed is {min_value}. Do you want me to retry with {min_value}, or cancel?"
 
     if details:
-        return (
-            f"{message} ({tool_name} details: {json.dumps(details, ensure_ascii=False)}) How do you want to proceed?"
-        )
+        return f"{message} ({tool_name} details: {json.dumps(details, ensure_ascii=False)}) How do you want to proceed?"
     return f"{message} How do you want to proceed?"
 
 
@@ -132,10 +128,11 @@ def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
                 attempts += 1
                 is_transient = isinstance(exc, (TimeoutError, ConnectionError, OSError))
                 is_connect = tool.name == CONNECT_TOOL_NAME
-                is_read = (
-                    tool.name.startswith(("get_", "list_", "search_"))
-                    or tool.name in {"check_inventory", "get_stock_balance", "get_context"}
-                )
+                is_read = tool.name.startswith(("get_", "list_", "search_")) or tool.name in {
+                    "check_inventory",
+                    "get_stock_balance",
+                    "get_context",
+                }
                 can_retry = attempts <= 1 and is_transient and (is_connect or is_read)
                 if debug:
                     logger.debug("[mcp] !! %s\n%s", tool.name, traceback.format_exc())
@@ -290,9 +287,7 @@ class OllamaRuntime(RuntimeAdapter):
             )
 
         raw_tools = [
-            t
-            for name, t in self._raw_tools_by_name.items()
-            if name in requested and name != CONNECT_TOOL_NAME
+            t for name, t in self._raw_tools_by_name.items() if name in requested and name != CONNECT_TOOL_NAME
         ]
         return [_wrap_tool(t, gate=gate, debug=self.debug) for t in raw_tools]
 
@@ -327,4 +322,3 @@ class OllamaRuntime(RuntimeAdapter):
             if self.debug:
                 logger.exception("OllamaRuntime.run_turn failed")
             raise
-

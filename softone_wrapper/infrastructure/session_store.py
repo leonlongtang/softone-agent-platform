@@ -76,4 +76,3 @@ class InMemorySessionStore:
             module=rec.module,
             refid=rec.refid,
         )
-

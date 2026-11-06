@@ -8,6 +8,7 @@ Brain rules enforced here:
     - order_id (if given) must exist
     - one invoice per order_id (the "already invoiced" rule)
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -24,8 +25,7 @@ from .validators import (
 
 def get_invoice(conn: sqlite3.Connection, key: Any) -> dict[str, Any]:
     inv = conn.execute(
-        "SELECT id, customer_id, order_id, amount, status, created_at "
-        "FROM invoices_business WHERE id = ?",
+        "SELECT id, customer_id, order_id, amount, status, created_at FROM invoices_business WHERE id = ?",
         (int(key),),
     ).fetchone()
     if inv is None:
@@ -115,7 +115,9 @@ def set_invoice(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> dic
 
 def del_invoice(conn: sqlite3.Connection, key: Any) -> dict[str, Any]:
     cur = delete_with_fk_guard(
-        conn, "DELETE FROM invoices_business WHERE id = ?", (int(key),),
+        conn,
+        "DELETE FROM invoices_business WHERE id = ?",
+        (int(key),),
         what=f"invoice {int(key)}",
     )
     if cur.rowcount == 0:

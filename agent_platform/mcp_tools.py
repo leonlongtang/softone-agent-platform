@@ -25,4 +25,3 @@ def mcp_server_params() -> dict:
 def mcp_prefixed_tool_name(tool_name: str) -> str:
     """Convert an MCP tool name to the Claude Agent SDK namespace."""
     return f"mcp__{MCP_SERVER_NAME}__{tool_name}"
-

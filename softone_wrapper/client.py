@@ -150,9 +150,7 @@ class SoftOneClient:
     ) -> list[dict[str, Any]]:
         _ = self._sessions.get(session_id)
         if hasattr(self._gateway, "list_orders"):
-            return getattr(self._gateway, "list_orders")(
-                status=status, customer_id=customer_id, limit=limit
-            )
+            return getattr(self._gateway, "list_orders")(status=status, customer_id=customer_id, limit=limit)
         raise SoftOneError(
             -9,
             "Listing orders is only supported in mock mode.",
@@ -201,9 +199,7 @@ class SoftOneClient:
 
         selection_provided = all(v is not None for v in (company, branch, module, refid))
         if selection_provided:
-            payload.update(
-                {"COMPANY": company, "BRANCH": branch, "MODULE": module, "REFID": refid}
-            )
+            payload.update({"COMPANY": company, "BRANCH": branch, "MODULE": module, "REFID": refid})
 
         resp = self._call(base_url=base_url, payload=payload)
 
@@ -472,4 +468,3 @@ class SoftOneClient:
                 "KEY": KEY,
             },
         )
-

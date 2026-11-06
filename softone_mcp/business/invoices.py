@@ -8,6 +8,7 @@ Layer contract:
        InvalidPaymentTermsError).
     - Let SoftOneError propagate for anything else.
 """
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -33,6 +34,7 @@ PAYMENT_TERMS_DAYS: dict[str, int] = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _resolve_due_date(payment_terms: str) -> str:
     """
@@ -63,6 +65,7 @@ def _normalize_invoice(response: dict[str, Any]) -> dict[str, Any]:
 # Business logic functions
 # ---------------------------------------------------------------------------
 
+
 def create_invoice_bl(
     orders: OrderRepository,
     invoices: InvoiceRepository,
@@ -91,9 +94,7 @@ def create_invoice_bl(
 
     current_status = order.get("status")
     if current_status != "Confirmed":
-        raise InvalidOrderStatusError(
-            order_id, current_status or "None", "Confirmed"
-        )
+        raise InvalidOrderStatusError(order_id, current_status or "None", "Confirmed")
 
     # 2. Resolve due date (raises InvalidPaymentTermsError on unknown terms).
     due_date = _resolve_due_date(payment_terms)

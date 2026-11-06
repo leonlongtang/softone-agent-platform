@@ -30,7 +30,6 @@ def test_build_system_prompt_dedups_resources_and_includes_envelope() -> None:
     assert prompt.endswith("\n")
 
 
-
 @dataclass
 class FakeRuntime(RuntimeAdapter):
     """Records which department ran; optionally fails like a real tool error."""

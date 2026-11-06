@@ -58,10 +58,7 @@ def register_connect_tools(mcp: FastMCP, client: SoftOneClient) -> None:
 
     @mcp.tool(
         name="get_context",
-        description=(
-            "Return the session selection context (company/branch/module/refid) "
-            "for a given session_id."
-        ),
+        description=("Return the session selection context (company/branch/module/refid) for a given session_id."),
     )
     def get_context_tool(session_id: str) -> dict[str, Any]:
         try:
@@ -69,4 +66,3 @@ def register_connect_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             return ok(GetContextOut(**data).model_dump())
         except SoftOneError as e:
             return err(e)
-

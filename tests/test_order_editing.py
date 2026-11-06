@@ -83,4 +83,3 @@ def test_add_order_line_draft_only(mcp_client: SoftOneClient, session_id: str) -
         quantity=1,
     )
     assert out.get("id") == 5005
-

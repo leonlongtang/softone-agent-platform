@@ -4,6 +4,7 @@ NOT a CRUD endpoint -- this returns the stored MyData / signature blob for a
 (doc_key, template) pair. Uses the `invoices` table (not `invoices_business`,
 which is the order-side business invoice).
 """
+
 from __future__ import annotations
 
 import sqlite3

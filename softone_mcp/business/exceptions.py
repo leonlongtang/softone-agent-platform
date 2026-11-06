@@ -15,9 +15,7 @@ class ItemNotFoundError(Exception):
 
 class InsufficientStockError(Exception):
     def __init__(self, item_id: int, requested: int, available: int):
-        super().__init__(
-            f"Item {item_id}: requested {requested}, only {available} available"
-        )
+        super().__init__(f"Item {item_id}: requested {requested}, only {available} available")
         self.item_id = item_id
         self.requested = requested
         self.available = available
@@ -31,9 +29,7 @@ class OrderNotFoundError(Exception):
 
 class InvalidOrderStatusError(Exception):
     def __init__(self, order_id: int, current: str, expected: str):
-        super().__init__(
-            f"Order {order_id} is '{current}', expected '{expected}'"
-        )
+        super().__init__(f"Order {order_id} is '{current}', expected '{expected}'")
         self.order_id = order_id
         self.current = current
         self.expected = expected
@@ -47,10 +43,7 @@ class InvoiceNotFoundError(Exception):
 
 class InvalidPaymentTermsError(Exception):
     def __init__(self, terms: str):
-        super().__init__(
-            f"Unknown payment terms '{terms}'. "
-            f"Use: 'net_30', 'net_60', 'net_90', 'due_on_receipt'"
-        )
+        super().__init__(f"Unknown payment terms '{terms}'. Use: 'net_30', 'net_60', 'net_90', 'due_on_receipt'")
         self.terms = terms
 
 
@@ -81,8 +74,7 @@ class PaymentExceedsBalanceError(Exception):
 
     def __init__(self, invoice_id: int, amount: float, outstanding: float):
         super().__init__(
-            f"Payment of {amount:.2f} exceeds outstanding balance "
-            f"({outstanding:.2f}) on invoice {invoice_id}"
+            f"Payment of {amount:.2f} exceeds outstanding balance ({outstanding:.2f}) on invoice {invoice_id}"
         )
         self.invoice_id = invoice_id
         self.amount = amount

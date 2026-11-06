@@ -15,6 +15,7 @@ Note on `amount`: exposed as a string so the Inspector / less-structured
 LLM clients can type freely; we parse it to float inside the tool and
 return a clean error envelope on bad input.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -47,21 +48,23 @@ from softone_wrapper.domain.errors import SoftOneError
 # MCP tool registrations
 # ---------------------------------------------------------------------------
 
+
 def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
 
-    @mcp.tool(name="record_payment", description=(
-        "Record a payment against an invoice. "
-        "In the mock backend, the invoice status is automatically refreshed "
-        "(unpaid → partial → paid) based on the sum of payments."
-    ))
+    @mcp.tool(
+        name="record_payment",
+        description=(
+            "Record a payment against an invoice. "
+            "In the mock backend, the invoice status is automatically refreshed "
+            "(unpaid → partial → paid) based on the sum of payments."
+        ),
+    )
     def record_payment_tool(
         session_id: Annotated[
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        invoice_id: Annotated[
-            int, Field(description="ID of the invoice being paid.")
-        ],
+        invoice_id: Annotated[int, Field(description="ID of the invoice being paid.")],
         amount: Annotated[
             str,
             Field(description="Payment amount (e.g. '100.00'). Parsed as a float."),
@@ -75,11 +78,13 @@ def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
         try:
             parsed_amount = float(amount)
         except ValueError:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                "Invalid amount. Expected a number.",
-                {"amount": amount},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    "Invalid amount. Expected a number.",
+                    {"amount": amount},
+                )
+            )
 
         invoices_repo = SoftOneInvoiceRepository(client, session_id)
         payments_repo = SoftOnePaymentRepository(client, session_id)
@@ -93,39 +98,44 @@ def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except ValueError as ve:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(ve),
-                {"amount": parsed_amount, "invoice_id": invoice_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(ve),
+                    {"amount": parsed_amount, "invoice_id": invoice_id},
+                )
+            )
         except InvoiceNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"invoice_id": e.invoice_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"invoice_id": e.invoice_id},
+                )
+            )
         except InvoiceAlreadyPaidError as e:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(e),
-                {
-                    "invoice_id": e.invoice_id,
-                    "hint": (
-                        "Use refund_payment to reverse an existing payment "
-                        "before recording a new one."
-                    ),
-                },
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(e),
+                    {
+                        "invoice_id": e.invoice_id,
+                        "hint": ("Use refund_payment to reverse an existing payment before recording a new one."),
+                    },
+                )
+            )
         except PaymentExceedsBalanceError as e:
-            return err(SoftOneError(
-                SOFTONE_BAD_INPUT_CODE,
-                str(e),
-                {
-                    "invoice_id": e.invoice_id,
-                    "amount": e.amount,
-                    "outstanding": e.outstanding,
-                },
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_BAD_INPUT_CODE,
+                    str(e),
+                    {
+                        "invoice_id": e.invoice_id,
+                        "amount": e.amount,
+                        "outstanding": e.outstanding,
+                    },
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -141,9 +151,7 @@ def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        invoice_id: Annotated[
-            int, Field(description="ID of the invoice whose payments to list.")
-        ],
+        invoice_id: Annotated[int, Field(description="ID of the invoice whose payments to list.")],
     ) -> dict[str, Any]:
         invoices_repo = SoftOneInvoiceRepository(client, session_id)
         payments_repo = SoftOnePaymentRepository(client, session_id)
@@ -155,11 +163,13 @@ def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except InvoiceNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"invoice_id": e.invoice_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"invoice_id": e.invoice_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
@@ -169,9 +179,7 @@ def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        payment_id: Annotated[
-            int, Field(description="ID of the payment to fetch.")
-        ],
+        payment_id: Annotated[int, Field(description="ID of the payment to fetch.")],
     ) -> dict[str, Any]:
         payments_repo = SoftOnePaymentRepository(client, session_id)
         try:
@@ -181,27 +189,30 @@ def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except PaymentNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"payment_id": e.payment_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"payment_id": e.payment_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)
 
-    @mcp.tool(name="refund_payment", description=(
-        "Refund (delete) a payment by ID. "
-        "In the mock backend, the associated invoice status is rolled back "
-        "(paid → partial → unpaid) as the sum of payments drops."
-    ))
+    @mcp.tool(
+        name="refund_payment",
+        description=(
+            "Refund (delete) a payment by ID. "
+            "In the mock backend, the associated invoice status is rolled back "
+            "(paid → partial → unpaid) as the sum of payments drops."
+        ),
+    )
     def refund_payment_tool(
         session_id: Annotated[
             str,
             Field(description="Session obtained from softone_connect_default()."),
         ],
-        payment_id: Annotated[
-            int, Field(description="ID of the payment to refund (delete).")
-        ],
+        payment_id: Annotated[int, Field(description="ID of the payment to refund (delete).")],
     ) -> dict[str, Any]:
         payments_repo = SoftOnePaymentRepository(client, session_id)
         try:
@@ -211,10 +222,12 @@ def register_payment_tools(mcp: FastMCP, client: SoftOneClient) -> None:
             )
             return ok(data)
         except PaymentNotFoundError as e:
-            return err(SoftOneError(
-                SOFTONE_NOT_FOUND_CODE,
-                str(e),
-                {"payment_id": e.payment_id},
-            ))
+            return err(
+                SoftOneError(
+                    SOFTONE_NOT_FOUND_CODE,
+                    str(e),
+                    {"payment_id": e.payment_id},
+                )
+            )
         except SoftOneError as e:
             return err(e)

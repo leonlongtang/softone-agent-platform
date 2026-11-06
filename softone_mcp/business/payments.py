@@ -16,6 +16,7 @@ accepted — refund an existing payment first. A single payment may never
 exceed the invoice's outstanding balance (no implicit over-payments / credit
 accounts). Loosen this here if your business rules allow partial over-pay.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -77,9 +78,7 @@ def record_payment_bl(
     if amount <= 0:
         raise ValueError("Payment amount must be positive")
 
-    _invoice, outstanding = _invoice_outstanding_balance(
-        invoices, payments, invoice_id
-    )
+    _invoice, outstanding = _invoice_outstanding_balance(invoices, payments, invoice_id)
 
     if outstanding <= 0:
         raise InvoiceAlreadyPaidError(invoice_id)

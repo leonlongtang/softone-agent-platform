@@ -39,4 +39,3 @@ class InvalidServiceCall(SoftOneError):
 
 class InvalidRequest(SoftOneError):
     pass
-

@@ -35,10 +35,7 @@ def build_system_prompt(
     if policy.resource_uris or extra_resource_uris:
         uniq = list(dict.fromkeys((*policy.resource_uris, *extra_resource_uris)))
         if uniq:
-            parts.append(
-                "BEFORE USING TOOLS:\n"
-                + "\n".join([f"- Read resource: `{u}`" for u in uniq])
-            )
+            parts.append("BEFORE USING TOOLS:\n" + "\n".join([f"- Read resource: `{u}`" for u in uniq]))
 
     if session_instruction:
         parts.append(session_instruction.strip())
@@ -46,9 +43,9 @@ def build_system_prompt(
     if policy.enforce_envelope:
         parts.append(
             "TOOL RESPONSE ENVELOPE:\n"
-            "- Success: `{ \"ok\": true, \"data\": ..., \"meta\": {\"trace_id\", \"tool\", \"actions\"} }`\n"
-            "- Error: `{ \"ok\": false, \"error\": { \"code\", \"message\", \"details\" }, "
-            "\"meta\": {\"trace_id\", \"tool\", \"actions\"} }`"
+            '- Success: `{ "ok": true, "data": ..., "meta": {"trace_id", "tool", "actions"} }`\n'
+            '- Error: `{ "ok": false, "error": { "code", "message", "details" }, '
+            '"meta": {"trace_id", "tool", "actions"} }`'
         )
 
     if policy.stop_on_tool_error:
@@ -66,5 +63,3 @@ def build_system_prompt(
     )
 
     return "\n\n".join(p for p in parts if p).strip() + "\n"
-
-

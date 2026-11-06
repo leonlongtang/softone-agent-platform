@@ -10,6 +10,7 @@ The mock simulates SoftOne's *API surface*; it does NOT replicate ERP
 internals. Company-policy logic (auto-approve thresholds, payment terms,
 invoice generation rules) lives in `softone_mcp/business/`, not here.
 """
+
 from __future__ import annotations
 
 from .errors import WsError

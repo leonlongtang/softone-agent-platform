@@ -4,6 +4,7 @@ Side effect: every set/del recomputes the parent invoice's `status` from
 `SUM(payments.amount)` so callers see consistent paid/partial/unpaid values
 without having to drive that themselves.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -19,9 +20,7 @@ def _refresh_invoice_status(conn: sqlite3.Connection, invoice_id: int) -> None:
     Called after every payment change. The schema CHECK constraint allows
     only 'unpaid' / 'partial' / 'paid'; this function only ever writes those.
     """
-    inv = conn.execute(
-        "SELECT amount FROM invoices_business WHERE id=?", (invoice_id,)
-    ).fetchone()
+    inv = conn.execute("SELECT amount FROM invoices_business WHERE id=?", (invoice_id,)).fetchone()
     if inv is None:
         return
     (paid_sum,) = conn.execute(
@@ -36,9 +35,7 @@ def _refresh_invoice_status(conn: sqlite3.Connection, invoice_id: int) -> None:
         status = "partial"
     else:
         status = "unpaid"
-    conn.execute(
-        "UPDATE invoices_business SET status=? WHERE id=?", (status, invoice_id)
-    )
+    conn.execute("UPDATE invoices_business SET status=? WHERE id=?", (status, invoice_id))
 
 
 def get_payment(conn: sqlite3.Connection, key: Any) -> dict[str, Any]:
@@ -77,16 +74,13 @@ def set_payment(conn: sqlite3.Connection, key: Any, data: dict[str, Any]) -> dic
         (mx,) = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM payments").fetchone()
         pay_id = int(mx)
         conn.execute(
-            "INSERT INTO payments(id, invoice_id, amount, payment_date) "
-            "VALUES (?,?,?,COALESCE(?, CURRENT_TIMESTAMP))",
+            "INSERT INTO payments(id, invoice_id, amount, payment_date) VALUES (?,?,?,COALESCE(?, CURRENT_TIMESTAMP))",
             (pay_id, invoice_id, float(g("AMOUNT") or 0.0), g("PAYMENT_DATE")),
         )
         _refresh_invoice_status(conn, invoice_id)
     else:
         pay_id = int(key)
-        existing = conn.execute(
-            "SELECT invoice_id FROM payments WHERE id=?", (pay_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT invoice_id FROM payments WHERE id=?", (pay_id,)).fetchone()
         if existing is None:
             raise WsError(WS_NOT_FOUND, "Invalid request, Data does not exist.")
         invoice_id = int(existing["invoice_id"])
@@ -113,15 +107,15 @@ def del_payment(conn: sqlite3.Connection, key: Any) -> dict[str, Any]:
     here will never actually fire -- but using it keeps every del_X path
     uniform.
     """
-    ex = conn.execute(
-        "SELECT invoice_id FROM payments WHERE id=?", (int(key),)
-    ).fetchone()
+    ex = conn.execute("SELECT invoice_id FROM payments WHERE id=?", (int(key),)).fetchone()
     if ex is None:
         raise WsError(WS_NOT_FOUND, "Invalid request, Data does not exist.")
     invoice_id = int(ex["invoice_id"])
 
     cur = delete_with_fk_guard(
-        conn, "DELETE FROM payments WHERE id = ?", (int(key),),
+        conn,
+        "DELETE FROM payments WHERE id = ?",
+        (int(key),),
         what=f"payment {int(key)}",
     )
     if cur.rowcount == 0:
