@@ -37,6 +37,7 @@ Settled while charting (2026-11-05):
 - [07: Motion rules](issues/07-motion-rules.md): restraint: CSS only, `transform`/`opacity` only; turn changes, table switches and jumps are instant; chat open 200ms / fold 150ms; chip flash 1.2s + 400ms fade; tokens in `tokens.css`. See `DESIGN.md` → Motion.
 - [09: How the new UI is tested](issues/09-testing-the-new-ui.md): Playwright in `web/e2e/` against a test-only fake server (`tests/e2e_server.py`); four flows (approve, reject, chip jump, backend down), approve also at phone size; Chromium in CI with the approve-loop ticket; one `node --test` file for row matching and money format. See `DESIGN.md` → Testing.
 - [10: Pending-write preview](issues/10-pending-write-preview.md): no ghost rows (approval goes by tool name, so a preview from the blocked args can be wrong); the approval card gets links to the existing rows a call names, which jump like chips. See `DESIGN.md` → Structure and flows → Pending-write preview.
+- [11: Large-table behaviour: paging, filter, names](issues/11-large-table-behaviour.md): no server paging; whole tables (gzipped) filtered, sorted and labelled in the browser; accent-insensitive filter on displayed text; single-column sort reset by chip jumps. See `DESIGN.md` → Large tables.
 
 ## Not yet specified
 
