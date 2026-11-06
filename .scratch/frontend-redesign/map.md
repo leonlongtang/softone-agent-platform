@@ -38,10 +38,11 @@ Settled while charting (2026-11-05):
 - [09: How the new UI is tested](issues/09-testing-the-new-ui.md): Playwright in `web/e2e/` against a test-only fake server (`tests/e2e_server.py`); four flows (approve, reject, chip jump, backend down), approve also at phone size; Chromium in CI with the approve-loop ticket; one `node --test` file for row matching and money format. See `DESIGN.md` → Testing.
 - [10: Pending-write preview](issues/10-pending-write-preview.md): no ghost rows (approval goes by tool name, so a preview from the blocked args can be wrong); the approval card gets links to the existing rows a call names, which jump like chips. See `DESIGN.md` → Structure and flows → Pending-write preview.
 - [11: Large-table behaviour: paging, filter, names](issues/11-large-table-behaviour.md): no server paging; whole tables (gzipped) filtered, sorted and labelled in the browser; accent-insensitive filter on displayed text; single-column sort reset by chip jumps. See `DESIGN.md` → Large tables.
+- [12: Keyboard shortcuts for operators](issues/12-keyboard-shortcuts.md): punctuation keys by physical key (`/` composer, `Esc` fold, `]`/`[` next change, `?` help) plus Ctrl/Cmd+F to the filter; no Approve/Reject shortcut; one-stop table in a skip link → sidebar → filter → table → chat order. See `DESIGN.md` → Keyboard.
 
 ## Not yet specified
 
-- **Accessibility baseline beyond the audit's findings:** focus order between the floating chat and the table, screen-reader announcement of turn changes, and contrast of text on the clear-glass chat over busy rows (`DESIGN.md` → Structure and flows; desktop only, since the phone sheet is solid). Sharpens once the keyboard shortcuts ticket settles focus. Includes whether an axe scan joins the Playwright suite (`DESIGN.md` → Testing → Left out).
+<!-- empty: the accessibility patch graduated to ticket 13 -->
 
 ## Out of scope
 
