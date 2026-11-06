@@ -8,8 +8,9 @@ Each iteration:
 2. Pick the first ticket with `Status: ready-for-agent` whose `Blocked by:` tickets are all `resolved`. Order: `runtime-seam` 01, 02, 03, then `web-client` 01, 02. Read its feature's `spec.md`, `GLOSSARY.md`, `CODING_STANDARDS.md` and `web/AGENTS.md` (for web work).
 3. Implement it test-first. Keep the diff small. Don't touch anything a spec lists as out of scope.
 4. Run every check the ticket lists, and always: `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`. For web work also `npm run lint`, `npm run typecheck`, `npm test`, `npm run build` in `web/`. Fix failures before going on.
-5. Tick each checkbox you proved. Set `Status: resolved` and append a short `Done:` note (what changed, test counts). If a checkbox can't be proven, leave it unticked with the reason in the Done note.
-6. Commit code + ticket together: `git add -A -- . ':!.claude' ':!.scratch/frontend-redesign'`, message `<feature> <NN>: <ticket title>`, ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Never push, never amend, never skip hooks.
+5. Review before committing: run `/code-review <the commit before this ticket>` on the ticket's diff (Standards: `CODING_STANDARDS.md`, plus `web/CODING_STANDARDS.md` for web work; Spec: the ticket and its `spec.md`). Fix every correctness finding and every standards violation, then rerun step 4. Note skipped findings, with the reason, in the Done note.
+6. Tick each checkbox you proved. Set `Status: resolved` and append a short `Done:` note (what changed, test counts). If a checkbox can't be proven, leave it unticked with the reason in the Done note.
+7. Commit code + ticket together: `git add -A -- . ':!.claude' ':!.scratch/frontend-redesign'`, message `<feature> <NN>: <ticket title>`, ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Never push, never amend, never skip hooks.
 
 Rules:
 

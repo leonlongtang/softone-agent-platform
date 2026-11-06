@@ -11,6 +11,9 @@ __pycache__/
 .pytest_cache/
 
 
+# Claude Code plugin state (e.g. the Ralph loop's .claude/ralph-loop.local.md)
+.claude/*.local.md
+
 # Mock DB is seeded on first use
 mock_db/mock_softone.db
 *.egg-info/
