@@ -162,7 +162,7 @@ Decided 2026-11-05 (ticket 05), by the user. The user compared three layouts on 
   - The rows underneath stay readable.
   - Under `prefers-reduced-transparency` it's solid `--raised`.
   - The user rejected solid and frosted (70%, 14px blur), which hid the rows.
-  - **Contrast risk:** the AA pairs in Visual identity were checked on solid surfaces. Text on the glass has to be rechecked over the busiest rows (status pills, highlighted rows). If a pair fails, raise the opacity, not the blur.
+  - **Text never sits on the glass itself.** The glass is the frame and the gaps; each text block (question bubble, answer, read/trace line, approval card, composer, chips) has a solid background (`--raised`, or its own `--accent-soft`/`--warn-soft`). The clear 55% glass failed AA where chat text crosses row text (see Accessibility → Glass contrast).
 - **Two states:**
   - **open:** the conversation log sits above the composer, scrolls, and stops at 44vh;
   - **folded:** a status line ("Last turn: approved" + change chips, or the busy indicator) above the composer.
@@ -383,6 +383,55 @@ Decided 2026-11-06 (ticket 12), with the user. Questions and mockups: artifact "
 - `?` and a **Keyboard shortcuts…** entry in the runtime menu open the same static dialog: the keys table above, plus "Approve and Reject have no shortcut. Tab to the button and press Enter."
 - Tooltips name the key: the composer ("Ask the agent `/`"), the change chips ("Next change `]`") and the filter (Ctrl/Cmd+F).
 
+## Accessibility
+
+Decided 2026-11-06 (ticket 13), with the user. Questions, measurements and the rendered glass options: artifact "Operator Accessibility Questions" (https://claude.ai/artifact/SKCbcfjd7jJpwvxKpmjRyJ). Keys and focus are in Keyboard; this section covers what's heard, contrast and contrast themes. The audit's fixes (busy line once, glyphs `aria-hidden`, no whole-log live region) still stand.
+
+### Announcements
+
+One polite live region: the chat's status line (`role="status"`). It says one sentence per event and never reads the answer:
+
+| Event | Says |
+|---|---|
+| read turn ends | "Answer ready." |
+| pending write | nothing here: focus moves to the card, which announces "Pending write: needs your approval" |
+| approved | "Written. Orders: 1 added. Items: 2 changed. Press ] to go to the changes." |
+| rejected | "Rejected. Nothing was written." |
+| failed turn | "The turn failed. Nothing was written." |
+| backend down | "Can't reach the API." (once, not on each retry) |
+| chip, `]`/`[` jump | "Items, row 41: changed price. Change 2 of 3." |
+| row link on the card | "Items, row 42." |
+
+Counts are words (added, changed, deleted), never the chip symbols.
+
+### The table
+
+- `aria-rowcount` on the table (all rows, not just rendered ones) and `aria-rowindex` on each rendered row, so a reader says "row 41 of 180".
+- The gutter marks are `aria-hidden`. Changed rows carry visually hidden text: "added", "changed: price" (the changed column labels), "deleted".
+- The scroll region is named, e.g. "Items table, 180 rows, 2 changed this turn".
+- Cells and chat text containing Greek letters (`/[Ͱ-Ͽ]/`) get `lang="el"`, so screen readers switch voice. Mixed text counts as Greek.
+
+### Glass contrast
+
+- **Measured worst case** (chat text over a row glyph, warn pill or accent, blur ignored), `--raised` at the glass opacity:
+
+| Opacity | Body, dark | Muted, dark | Body, light | Muted, light |
+|---|---|---|---|---|
+| 55% | 3.43 | 1.62 | 5.98 | 2.20 |
+| 70% | 5.30 | 2.50 | 8.89 | 3.27 |
+| 85% | 8.41 | 3.96 | 12.59 | 4.63 |
+
+- **Decision:** keep the 55% glass on the chat frame and the gaps; every text block gets a solid background (Structure and flows → Floating chat). Text pairs are then solid-surface pairs, which pass AA (Visual identity).
+- **Rule for later token changes:** any text that does sit on a translucent surface must pass 4.5:1 against that surface mixed over the worst colour that can be under it, computed as above.
+- **Solid chat:** under `prefers-reduced-transparency` and `prefers-contrast: more`, the whole chat is solid `--raised`.
+
+### Contrast themes (`forced-colors: active`)
+
+- Row tints disappear, so meaning rides on the `+ ~ −` marks and the strike-through; changed cells get a 1px border.
+- The chat is solid `Canvas` with a `CanvasText` border; the approval card keeps a 2px border.
+- Pills and badges keep their text and gain a border; the selected table uses `Highlight`.
+- Checked by hand once in Edge's forced-colors emulation, not in CI.
+
 ## Testing
 
 Decided 2026-11-06 (ticket 09), with the user. The goal is one browser test that proves the workspace loop (ask, approval card, approve, change in the table) without an LLM.
@@ -400,8 +449,11 @@ Decided 2026-11-06 (ticket 09), with the user. The goal is one browser test that
 2. **Reject:** ask, then Reject. "Nothing was written" shows and no row is highlighted.
 3. **Chip jump:** after an approve, switch to another table and click `Orders +1`. Orders is selected and the row is in view.
 4. **Backend down:** `/api/*` is failed with Playwright request interception. "Can't reach the API" and Retry show.
+5. **Keyboard approve** (ticket 13): `/`, type, Enter. Focus is on the approval card, not Approve. Enter on the card writes nothing (no 5006). Tab, Enter approves: 5006 is marked `+` and focus is in the composer. Esc, `]`: Orders is selected, focus is on the table, and 5006 is in view.
 
-There are two projects. All four flows run on desktop (1440×900); flow 1 also runs at phone size (390×844), where the chat is a docked sheet.
+There are two projects. All five flows run on desktop (1440×900); flow 1 also runs at phone size (390×844), where the chat is a docked sheet.
+
+**axe** (`@axe-core/playwright`, ticket 13): scans inside the flows, at four states (empty workspace and approval card in flow 1, after approve in flow 1, backend down in flow 4), in dark and light, desktop only. WCAG 2.1 A + AA rules; serious or critical violations fail the run.
 
 Not covered, on purpose: New chat, the runtime switch, Reset, a read-only turn, and the failed-turn and Ollama-down errors. Each is thin UI over code that's already tested.
 
@@ -416,4 +468,5 @@ The Node job from Stack (`npm ci`, lint, `next build`) gains the Playwright run 
 ### Left out
 
 - **Screenshot and visual-regression tests:** too brittle while the look is still settling.
-- **axe and other accessibility scans:** they wait for the accessibility baseline (map fog).
+- **Contrast through the glass:** axe can't judge it (it reports "needs review"); the rule in Accessibility → Glass contrast covers it.
+- **Windows contrast themes:** checked by hand (see Accessibility).

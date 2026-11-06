@@ -25,8 +25,9 @@
   --bad: #fda4af;  --bad-soft: #34181e;
 
   --shadow-float: 0 12px 32px #00000080;
-  /* Floating chat is "clear glass": table rows stay readable underneath. Solid --raised under
-     prefers-reduced-transparency. Both themes derive from --raised, so light needs no override. */
+  /* Floating chat is "clear glass": table rows stay readable underneath. Glass is the frame only:
+     text blocks sit on solid --raised (55% fails AA under text, DESIGN.md → Accessibility). Solid --raised
+     under prefers-reduced-transparency and prefers-contrast: more. Both themes derive from --raised. */
   --glass: color-mix(in srgb, var(--raised) 55%, transparent);
   --glass-blur: 3px;
 
