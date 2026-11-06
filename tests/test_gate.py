@@ -86,7 +86,7 @@ def test_orchestrator_blocks_then_runs_write_after_yes_in_same_department() -> N
     app = build_orchestrator(ollama=WritingRuntime("ollama"), claude=FakeRuntime("claude"))
     state = asyncio.run(app.ainvoke({"artifacts": {}, "user_text": "create an order for customer 47"}))
     assert state["route"] == "sales"
-    assert 'create_order({"customer_id": 47})' in state["response"]  # exact call shown, session_id hidden
+    assert state["pending"] == [{"tool": "create_order", "args": {"customer_id": 47}}]  # session_id hidden
 
     state = asyncio.run(app.ainvoke({**state, "user_text": "yes"}))
     assert state["route"] == "sales"  # "yes" has no department words but stays with sales

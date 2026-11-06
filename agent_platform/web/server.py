@@ -1,10 +1,9 @@
-"""HTTP API for the web UI: one chat at a time, driven exactly like the CLI loop."""
+"""HTTP API for the web UI: a thin caller of one Chat (agent_platform.chat), like the CLI."""
 
 from __future__ import annotations
 
-import asyncio
-import logging
-from contextlib import AsyncExitStack, asynccontextmanager
+import functools
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Callable
 
@@ -15,14 +14,14 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
 
+from agent_platform.chat import Chat, ChatUnavailable
 from agent_platform.gate import WRITE_TOOLS
-from agent_platform.graph import GATE_KEY, escalation_enabled, open_orchestrator
+from agent_platform.graph import escalation_enabled, open_orchestrator
 from agent_platform.specs import SPECS
 from agent_platform.web import db
 from config import load_config
 
 INDEX = Path(__file__).resolve().parent / "index.html"
-logger = logging.getLogger(__name__)
 
 
 async def _tool_catalog() -> dict[str, list[dict[str, Any]]]:
@@ -41,27 +40,10 @@ async def _tool_catalog() -> dict[str, list[dict[str, Any]]]:
 def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Path = db.DEFAULT_DB_PATH) -> Starlette:
     """`open_chat(runtime)` is an async context manager yielding an orchestrator (tests pass a fake)."""
     mock = load_config().mock
-    lock = asyncio.Lock()  # one turn / chat change at a time
-    chat: dict[str, Any] = {"stack": None, "app": None, "state": None, "runtime": "ollama"}
-
-    async def close_chat() -> None:
-        if chat["stack"]:
-            await chat["stack"].aclose()
-        chat.update(stack=None, app=None, state=None)
-
-    async def start_chat(runtime: str) -> None:
-        await close_chat()
-        chat["runtime"] = runtime
-        stack = AsyncExitStack()
-        try:
-            chat["app"] = await stack.enter_async_context(open_chat(runtime))
-        except BaseException:
-            await stack.aclose()
-            raise
-        chat.update(stack=stack, state={"artifacts": {}})
+    chat = Chat(open_chat, snapshot=functools.partial(db.snapshot, db_path) if mock else None)
 
     def info() -> dict[str, Any]:
-        return {"runtime": chat["runtime"], "ready": chat["app"] is not None, "escalation": escalation_enabled()}
+        return {"runtime": chat.runtime, "ready": chat.ready, "escalation": escalation_enabled()}
 
     async def index(_: Request) -> FileResponse:
         return FileResponse(INDEX)
@@ -74,41 +56,25 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
         runtime = (await request.json()).get("runtime", "ollama")
         if runtime not in ("ollama", "claude"):
             return JSONResponse({"error": f"unknown runtime {runtime!r}"}, status_code=400)
-        async with lock:
-            try:
-                await start_chat(runtime)
-            except Exception as exc:  # noqa: BLE001 - e.g. Ollama not running: show it, keep serving
-                return JSONResponse({**info(), "error": f"{type(exc).__name__}: {exc}"}, status_code=503)
+        try:
+            await chat.switch(runtime)
+        except ChatUnavailable as exc:  # e.g. Ollama not running: show it, keep serving
+            return JSONResponse({**info(), "error": str(exc)}, status_code=503)
         return JSONResponse(info())
 
     async def turn(request: Request) -> JSONResponse:
         text = str((await request.json()).get("text", "")).strip()
         if not text:
             return JSONResponse({"error": "empty message"}, status_code=400)
-        async with lock:
-            if chat["app"] is None:
-                try:
-                    await start_chat(chat["runtime"])
-                except Exception as exc:  # noqa: BLE001
-                    return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=503)
-            before = db.snapshot(db_path) if mock else None
-            out: dict[str, Any] = {}
-            try:
-                chat["state"] = await chat["app"].ainvoke({**chat["state"], "user_text": text})
-                out.update(route=chat["state"].get("route"), runtime=chat["state"].get("runtime"))
-                out["response"] = chat["state"].get("response") or ""
-            except Exception as exc:  # noqa: BLE001 - a failed turn shouldn't end the chat
-                logger.debug("turn failed", exc_info=True)
-                out["error"] = f"{type(exc).__name__}: {exc}"
-            # The gate lives in the artifacts dict, which the graph mutates in place, so it's current even on error.
-            gate = chat["state"]["artifacts"].get(GATE_KEY)
-            out["trace"] = gate.trace if gate else []
-            out["pending"] = bool(gate and gate.blocked)
-            # The page shows blocked calls as an approval card; drop the CLI's text version of them.
-            summary = gate.pending_summary() if gate else ""
-            if summary and out.get("response", "").endswith(summary):
-                out["response"] = out["response"][: -len(summary)].rstrip()
-            out["diff"] = db.diff(before, db.snapshot(db_path)) if mock else None
+        try:
+            result = await chat.turn(text)
+        except ChatUnavailable as exc:
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        out: dict[str, Any] = {"trace": result.trace, "pending": bool(result.pending), "diff": result.changes}
+        if result.error:
+            out["error"] = result.error
+        else:
+            out.update(response=result.response, route=result.route, runtime=result.runtime)
         return JSONResponse(out)
 
     async def tables(_: Request) -> JSONResponse:
@@ -120,17 +86,17 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
     async def reset(_: Request) -> JSONResponse:
         if not mock:
             return JSONResponse({"error": "reset needs the mock backend"}, status_code=404)
-        async with lock:
-            await close_chat()  # stop the MCP servers before replacing their database file
-            from mock_db.create_and_seed import build_db
+        await chat.close()  # stop the MCP servers before replacing their database file
+        # No await from here to the end of build_db, so no Turn can start the Chat in between.
+        from mock_db.create_and_seed import build_db
 
-            build_db(db_path)
+        build_db(db_path)
         return JSONResponse(info())
 
     @asynccontextmanager
     async def lifespan(_: Starlette):
         yield
-        await close_chat()
+        await chat.close()
 
     return Starlette(
         routes=[

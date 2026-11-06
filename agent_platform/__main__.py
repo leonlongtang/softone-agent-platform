@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import logging
 import os
 import sys
@@ -27,22 +28,24 @@ def _parse_args() -> argparse.Namespace:
 
 async def _chat(*, prompt: str, runtime: str, debug: bool) -> None:
     # Heavy imports after arg parsing so `--help` is instant.
-    from agent_platform.graph import OrchestratorState, open_orchestrator
+    from agent_platform.chat import Chat
+    from agent_platform.gate import pending_summary
+    from agent_platform.graph import open_orchestrator
 
-    async with open_orchestrator(runtime, debug=debug) as app:
-        state: OrchestratorState = {"artifacts": {}}
+    chat = Chat(functools.partial(open_orchestrator, debug=debug), runtime=runtime)
 
-        async def turn(text: str) -> bool:
-            nonlocal state
-            try:
-                state = await app.ainvoke({**state, "user_text": text})
-            except Exception as exc:  # noqa: BLE001 - a failed turn (e.g. model crash) shouldn't end the chat
-                logging.getLogger("agent_platform").debug("turn failed", exc_info=True)
-                print(f"\n[error] {type(exc).__name__}: {exc}")
-                return False
-            print(f"\n[{state.get('route')} | {state.get('runtime')}] {state.get('response') or ''}")
-            return True
+    async def turn(text: str) -> bool:
+        result = await chat.turn(text)
+        if result.error:
+            print(f"\n[error] {result.error}")
+            return False
+        print(f"\n[{result.route} | {result.runtime}] {result.response}")
+        # Show the exact blocked write calls ourselves rather than trusting the model's summary.
+        if summary := pending_summary(result.pending):
+            print(f"\n{summary}")
+        return True
 
+    try:
         if prompt.strip():
             if not await turn(prompt.strip()):
                 raise SystemExit(1)
@@ -59,6 +62,8 @@ async def _chat(*, prompt: str, runtime: str, debug: bool) -> None:
                 return
             if text:
                 await turn(text)
+    finally:
+        await chat.close()
 
 
 def main() -> None:
@@ -72,7 +77,7 @@ def main() -> None:
         logging.getLogger("agent_platform").setLevel(logging.DEBUG)
     try:
         asyncio.run(_chat(prompt=args.prompt, runtime=args.runtime, debug=debug))
-    except RuntimeError as exc:
+    except RuntimeError as exc:  # includes ChatUnavailable
         raise SystemExit(f"error: {exc}") from None
 
 

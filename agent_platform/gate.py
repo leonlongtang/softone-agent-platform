@@ -94,12 +94,17 @@ class WriteGate(dict):
             return "ran"
         return "blocked"
 
-    def pending_summary(self) -> str:
-        if not self.blocked:
-            return ""
-        calls = "\n".join(
-            f"  - {tool}({json.dumps({k: v for k, v in args.items() if k != 'session_id'}, default=str)})"
+    def pending(self) -> list[dict[str, Any]]:
+        """This turn's blocked calls as data: [{tool, args}], args without session_id (as in the trace)."""
+        return [
+            {"tool": tool, "args": {k: v for k, v in args.items() if k != "session_id"}}
             for tool, args in self.blocked.items()
-        )
-        return f"Needs your approval:\n{calls}\nReply `yes` to run it."
+        ]
 
+
+def pending_summary(pending: list[dict[str, Any]]) -> str:
+    """The Pending write as text, for text-only chats (the CLI, the `messages` channel)."""
+    if not pending:
+        return ""
+    calls = "\n".join(f"  - {c['tool']}({json.dumps(c['args'], default=str)})" for c in pending)
+    return f"Needs your approval:\n{calls}\nReply `yes` to run it."

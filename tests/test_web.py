@@ -1,4 +1,4 @@
-"""Web UI backend: turn diff over the mock DB, and the HTTP API driven by a fake orchestrator."""
+"""Web UI backend: turn diff over the mock DB, and the HTTP API over the real Chat and a fake orchestrator."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def test_api_turns_report_trace_pending_and_diff(tmp_path: Path) -> None:
 
         first = client.post("/api/turn", json={"text": "create an order"}).json()
         assert first["pending"] and first["diff"] == []
-        assert first["response"] == "done"  # the page's approval card replaces the CLI's "Needs your approval" text
+        assert first["response"] == "done"  # the Chat's response carries no "Needs your approval" text
         assert first["trace"] == [{"tool": "create_order", "args": {"customer_id": 47}, "status": "blocked"}]
 
         second = client.post("/api/turn", json={"text": "yes"}).json()

@@ -14,7 +14,7 @@ from langgraph.constants import END, START
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import StateGraph
 
-from agent_platform.gate import WriteGate
+from agent_platform.gate import WriteGate, pending_summary
 from agent_platform.router import CLARIFY_QUESTION, DEPARTMENTS, hybrid_route, is_follow_up_detail, named_department
 from agent_platform.runtimes.base import BAD_TOOL_INPUT, HISTORY_KEY, RunContext, RuntimeAdapter, ToolError
 from agent_platform.specs import SPECS, AgentSpec
@@ -32,6 +32,7 @@ class OrchestratorState(TypedDict, total=False):
     route: str  # a department, or "clarify"
     runtime: str  # which runtime answered: "ollama", "claude", or "router" for a clarify
     response: str
+    pending: list[dict[str, Any]]  # this turn's blocked write calls: [{tool, args}]
     # Cross-turn state: session_id, pending clarify text, last department, write gate, history.
     artifacts: dict[str, Any]
 
@@ -122,18 +123,18 @@ def build_orchestrator(
     async def run_agent_node(state: OrchestratorState) -> OrchestratorState:
         if state["route"] != "clarify":
             state = await answer_or_explain(state)
-        trace = state["artifacts"][GATE_KEY].trace
-        calls = [{"name": c["tool"], "args": c["args"], "id": f"call_{uuid4().hex}"} for c in trace]
-        state["messages"] = [AIMessage(state["response"], tool_calls=calls)]
+        gate = state["artifacts"][GATE_KEY]
+        state["pending"] = gate.pending()
+        calls = [{"name": c["tool"], "args": c["args"], "id": f"call_{uuid4().hex}"} for c in gate.trace]
+        # Text-only chat UIs read only `messages`: show them the exact blocked calls too.
+        content = "\n\n".join(filter(None, [state["response"].rstrip(), pending_summary(state["pending"])]))
+        state["messages"] = [AIMessage(content, tool_calls=calls)]
         return state
 
     async def answer_or_explain(state: OrchestratorState) -> OrchestratorState:
         state = await run_with_recovery(state)
         if not (state.get("response") or "").strip():
             state["response"] = f"The {state['route']} agent returned no answer. Try rephrasing the request."
-        # Show the exact blocked write calls ourselves rather than trusting the model's summary.
-        if pending := state["artifacts"][GATE_KEY].pending_summary():
-            state["response"] = f"{(state.get('response') or '').rstrip()}\n\n{pending}"
         return state
 
     async def run_with_recovery(state: OrchestratorState) -> OrchestratorState:
