@@ -13,7 +13,8 @@ export default defineConfig({
   use: { baseURL: "http://localhost:3000", trace: "retain-on-failure" },
   projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } }],
   webServer: [
-    { command: "uv run python -m tests.e2e_server", cwd: "..", port: 8000, reuseExistingServer: !CI },
+    // Always its own fake: a real API already on :8000 fails the run ("port already used") instead of sending turns to Ollama.
+    { command: "uv run python -m tests.e2e_server", cwd: "..", port: 8000, reuseExistingServer: false },
     // CI builds in its own step, then serves the build; locally `next dev` (DESIGN.md → Testing → Which build).
     { command: CI ? "npm run start" : "npm run dev", port: 3000, reuseExistingServer: !CI, timeout: 120_000 },
   ],
