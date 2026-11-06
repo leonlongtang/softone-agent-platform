@@ -10,8 +10,6 @@ import {
 import { labelFor } from "@/lib/format";
 
 import type { Runtime, Tool } from "@/lib/client";
-
-export type { Runtime };
 export const NAME: Record<Runtime, string> = { ollama: "Ollama", claude: "Claude" };
 
 /** Which dialog is open. A confirm carries its own copy and action (DESIGN.md → Flows 3–5). */

@@ -16,6 +16,7 @@ from agent_platform.mcp_tools import CONNECT_TOOL_NAME, MCP_SERVER_NAME, mcp_ser
 from agent_platform.prompting import PromptPolicy, build_system_prompt
 from agent_platform.runtimes.base import BAD_TOOL_INPUT, HISTORY_KEY, RunContext, RuntimeAdapter, ToolError
 from agent_platform.specs import AgentSpec
+from softone_wrapper.domain.errors import NOT_AUTHENTICATED_CODES, SESSION_EXPIRED_CODES
 
 logger = logging.getLogger(__name__)
 
@@ -92,14 +93,8 @@ def _build_retry_question(tool_name: str, error: dict[str, Any]) -> str:
 
 
 def _is_session_error(err: dict[str, Any]) -> bool:
-    """An expired or missing SoftOne login. Conservative: only obvious auth/session failures reconnect."""
-    msg = str(err.get("message") or "").lower()
-    code = err.get("code")
-    if code == -1 and "login" in msg:  # SoftOne: "Invalid request. Please login first"
-        return True
-    if isinstance(code, int) and code in {-401, 401, 403}:
-        return True
-    return any(k in msg for k in ("session", "not authenticated", "unauthorized", "forbidden", "auth"))
+    """An expired or missing SoftOne login, by the wrapper's own code table (never by message text)."""
+    return err.get("code") in SESSION_EXPIRED_CODES | NOT_AUTHENTICATED_CODES
 
 
 def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
@@ -298,35 +293,42 @@ class OllamaRuntime(RuntimeAdapter):
         ]
         return [_wrap_tool(t, gate=gate, debug=self.debug) for t in raw_tools]
 
-    async def run_turn(self, *, spec: AgentSpec, user_text: str, context: RunContext) -> str:
+    async def _attempt(self, spec: AgentSpec, messages: list[Any], context: RunContext) -> str:
         from langchain.agents import create_agent
-        from langchain_core.messages import AIMessage, HumanMessage
         from langchain_ollama import ChatOllama
+
+        agent = create_agent(
+            ChatOllama(model=self.model),
+            self._business_tools_for_spec(spec, context.gate),
+            system_prompt=self._system_prompt(spec=spec, session_id=await self._ensure_session()),
+        )
+        result = await agent.ainvoke({"messages": messages})
+        context.artifacts[HISTORY_KEY] = result["messages"]
+        return str(result["messages"][-1].content)
+
+    async def run_turn(self, *, spec: AgentSpec, user_text: str, context: RunContext) -> str:
+        from langchain_core.messages import AIMessage, HumanMessage
 
         # One conversation shared by all departments, so a handoff (sales creates
         # order 5003, then "invoice that order" goes to finance) keeps its context.
         # Only the system prompt and tool allowlist change per department.
         messages: list[Any] = [*(context.artifacts.get(HISTORY_KEY) or []), HumanMessage(content=user_text)]
-        for attempt in range(2):
-            agent = create_agent(
-                ChatOllama(model=self.model),
-                self._business_tools_for_spec(spec, context.gate),
-                system_prompt=self._system_prompt(spec=spec, session_id=await self._ensure_session()),
-            )
+        try:
             try:
-                result = await agent.ainvoke({"messages": messages})
-                context.artifacts[HISTORY_KEY] = result["messages"]
-                return str(result["messages"][-1].content)
+                return await self._attempt(spec, messages, context)
             except ToolError as te:
-                if te.kind == "session" and attempt == 0:
-                    logger.debug("[ollama_runtime] session expired; reconnecting and rerunning the turn")
-                    self._session_id = None
-                    continue
-                retry = AIMessage(content=_build_retry_question(tool_name=te.tool_name, error=te.error))
-                context.artifacts[HISTORY_KEY] = [*messages, retry]
-                raise
-            except Exception:
-                if self.debug:
-                    logger.exception("OllamaRuntime.run_turn failed")
-                raise
-        raise AssertionError("unreachable")
+                if te.kind != "session":
+                    raise
+                # The login expired: reconnect and rerun the turn once.
+                logger.debug("[ollama_runtime] session expired; reconnecting and rerunning the turn")
+                self._session_id = None
+                context.gate.retry_turn()
+                return await self._attempt(spec, messages, context)
+        except ToolError as te:
+            retry = AIMessage(content=_build_retry_question(tool_name=te.tool_name, error=te.error))
+            context.artifacts[HISTORY_KEY] = [*messages, retry]
+            raise
+        except Exception:
+            if self.debug:
+                logger.exception("OllamaRuntime.run_turn failed")
+            raise

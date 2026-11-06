@@ -222,6 +222,7 @@ def test_ollama_reconnects_once_on_expired_session(monkeypatch) -> None:
     assert len(tools["softone_connect_default"].calls) == 2  # S1 expired, S2 worked
     humans = [m for m in ctx.artifacts["history"] if m.type == "human"]
     assert [m.content for m in humans] == ["show customer 47"]  # the rerun didn't duplicate the message
+    assert len(ctx.gate.trace) == 1  # the failed attempt's call isn't listed twice
 
 
 def test_ollama_second_session_error_propagates(monkeypatch) -> None:

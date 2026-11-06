@@ -8,7 +8,7 @@ import pytest
 
 pytest.importorskip("langgraph")
 
-from agent_platform.gate import WRITE_TOOLS, WriteGate, is_approval, is_write
+from agent_platform.gate import ALREADY_DONE, WRITE_TOOLS, WriteGate, is_approval, is_write
 from agent_platform.graph import GATE_KEY, build_orchestrator
 from agent_platform.runtimes.base import RunContext
 from tests.test_agent_layer import FakeRuntime
@@ -149,7 +149,7 @@ def test_ollama_wrapper_retries_reads_once_never_writes(name: str, calls: int) -
     tool.name = name
     gate = WriteGate()
     gate.start_turn("x")
-    gate["approved"] = [name]  # let the write past the gate so only the retry rule is tested
+    gate.approved.append(name)  # let the write past the gate so only the retry rule is tested
     wrapped = _wrap_tool(tool, gate=gate, debug=False)
     if calls == 1:
         with pytest.raises(ConnectionError):
@@ -163,7 +163,10 @@ def test_ollama_wrapper_retries_reads_once_never_writes(name: str, calls: int) -
     ("envelope", "kind"),
     [
         ({"ok": False, "error": {"code": -1, "message": "Invalid request. Please login first"}}, "session"),
+        ({"ok": False, "error": {"code": 13, "message": "Invalid request"}}, "session"),  # SessionExpired, no keyword
+        ({"ok": False, "error": {"code": -2, "message": "Authentication failed"}}, "other"),  # bad credentials
         ({"ok": False, "error": {"code": "INVALID_STATUS", "message": "invoice needs a confirmed order"}}, "other"),
+        ({"ok": False, "error": {"code": 2001, "message": "No author on this session's order"}}, "other"),
         (None, "bad_input"),  # the tool's schema rejects the input
     ],
 )
@@ -215,6 +218,19 @@ def test_claude_permission_callback_gates_writes_and_enforces_allowlist() -> Non
 
     runtime._spec = SPECS["sales"]  # department switch: same client, different allowlist
     assert isinstance(ask(mcp("get_invoice")), PermissionResultDeny)
+
+
+def test_retry_turn_keeps_only_the_writes_that_ran() -> None:
+    g = WriteGate()
+    g.start_turn("create an order")
+    g.check("create_order", {"customer_id": 47})
+    g.start_turn("yes")
+    g.check("get_customer", {"id": 47})
+    g.check("create_order", {"customer_id": 47})
+    g.check("update_order", {"order_id": 1})  # blocked
+    g.retry_turn()
+    assert [c["tool"] for c in g.trace] == ["create_order"] and not g.blocked
+    assert g.check("create_order", {"customer_id": 47}) == ALREADY_DONE.format(tool="create_order")  # never twice
 
 
 def test_trace_records_every_call_this_turn() -> None:

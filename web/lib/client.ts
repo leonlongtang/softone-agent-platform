@@ -30,8 +30,8 @@ export class ClientError extends Error {
 async function call<T>(url: string, body?: object): Promise<T> {
   const init = body && { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
   const r = await fetch(url, init);
-  const json = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ClientError(r.status, json);
+  const json: unknown = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ClientError(r.status, json && typeof json === "object" ? (json as ClientError["body"]) : {});
   return json as T;
 }
 

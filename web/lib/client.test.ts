@@ -243,4 +243,6 @@ test("client: a non-2xx answer throws ClientError with the server's error", asyn
     e instanceof ClientError && e.status === 409 && e.message === "Nothing is waiting for approval.");
   stubFetch(500, "oops");
   await assert.rejects(info(), (e) => e instanceof ClientError && e.status === 500);
+  stubFetch(502, null);
+  await assert.rejects(info(), (e) => e instanceof ClientError && e.status === 502 && e.message === "HTTP 502");
 });

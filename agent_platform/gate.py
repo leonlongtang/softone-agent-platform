@@ -71,6 +71,10 @@ class WriteGate(dict):
         self["approved"] = list(self.blocked) if is_approval(user_text) else []
         self.update(blocked={}, ran=[], trace=[])
 
+    def retry_turn(self) -> None:
+        """Before rerunning this turn (after a reconnect): forget its reads and blocks, keep the writes that ran."""
+        self.update(blocked={}, trace=[c for c in self.trace if c["status"] == "ran"])
+
     def check(self, tool: str, args: dict[str, Any]) -> str | None:
         """Return None if the call may run, else a refusal message for the model."""
         intent = {k: v for k, v in args.items() if k != "session_id"}  # session ids are plumbing
