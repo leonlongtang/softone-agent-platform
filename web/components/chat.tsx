@@ -2,7 +2,8 @@
 
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { Tip } from "@/components/ui/tooltip";
 import { type DiffEntry, turnChanges } from "@/lib/changes";
 import {
   changeChips, type Decision, foldReads, formatArgs, isFailedTurn, isGreek, labelFor, type NameOf, pendingArgs, type RowLink,
@@ -45,8 +46,18 @@ async function postTurn(text: string): Promise<TurnResponse | null> {
   }
 }
 
-/** A jump to a table's first change or to a named row; returns the status line's sentence ("" if nothing to jump to). */
-type Jump = (table: string, key?: unknown[]) => string;
+/**
+ * A jump to a table's first change or to a named row; `step` is a `]`/`[` key, announced like a chip, with a static
+ * outline. Returns the status line's sentence ("" if nothing to jump to).
+ */
+export type Jump = (table: string, key?: unknown[], step?: boolean) => string;
+
+/** What the workspace's keys reach in the chat (DESIGN.md → Keyboard → Keys). */
+export interface ChatHandle {
+  jump: Jump; // folds and announces, like a chip
+  compose: () => void; // `/`: open and focus the composer, draft kept
+  turns: number;
+}
 
 /** One chip per changed table; a click jumps to that table's first change. Older turns' chips are plain text. */
 function Chips({ diff, onJump }: { diff: DiffEntry[] | null | undefined; onJump?: Jump }) {
@@ -57,14 +68,16 @@ function Chips({ diff, onJump }: { diff: DiffEntry[] | null | undefined; onJump?
     <ul aria-label="Changes this turn" className="flex flex-wrap gap-1.5">
       {chips.map((c, i) => (
         <li key={c}>
-          <button
-            type="button"
-            disabled={!onJump} // its changes have expired (DESIGN.md → What changed → Lifetime)
-            onClick={() => onJump?.(tables[i])}
-            className="rounded-full border border-line bg-raised px-2.5 py-0.5 text-sm tabular-nums enabled:hover:border-primary focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            {c}
-          </button>
+          <Tip label="Next change" keys="]">
+            <button
+              type="button"
+              disabled={!onJump} // its changes have expired (DESIGN.md → What changed → Lifetime)
+              onClick={() => onJump?.(tables[i])}
+              className="rounded-full border border-line bg-raised px-2.5 py-0.5 text-sm tabular-nums enabled:hover:border-primary focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              {c}
+            </button>
+          </Tip>
         </li>
       ))}
     </ul>
@@ -118,20 +131,26 @@ function ErrorLine({ res, runtime, onRetry }: { res: TurnResponse | null; runtim
  * The floating chat over the table (DESIGN.md → Floating chat, A turn in the log): clear glass frame,
  * solid text blocks, the turn loop against `POST /api/turn`, and the one `role="status"` line.
  */
-export function Chat({ nameOf, runtime, disabled, onTurn, onJump, rowLinks }: {
-  nameOf: NameOf; runtime: string; disabled: boolean; onTurn: (res: TurnResponse) => void;
-  onJump: Jump; rowLinks: (call: TraceCall) => RowLink[];
+export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, onLeave, rowLinks }: {
+  ref: React.Ref<ChatHandle>; notice: string; nameOf: NameOf; runtime: string; disabled: boolean;
+  onTurn: (res: TurnResponse) => void; onJump: Jump; onLeave: () => void; rowLinks: (call: TraceCall) => RowLink[];
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [draft, setDraft] = useState("");
   const [open, setOpen] = useState(true);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(notice); // a new chat's note, e.g. that Claude turns are billed
   const [busy, setBusy] = useState(false);
   const nextId = useRef(0);
   const cardRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const focusNext = useRef<"card" | "composer" | null>(null);
+  // New chat or Reset remounts the chat mid-turn: the old turn's reply must not bring back cleared changes.
+  const alive = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   const last = entries.at(-1);
   // A pending write: chat forced open, composer locked. The server reports `pending` on a failed turn too, and a
@@ -148,14 +167,15 @@ export function Chat({ nameOf, runtime, disabled, onTurn, onJump, rowLinks }: {
   }, [entries]);
 
   // A chip or row link: the workspace moves the table and focus; the chat folds and says where it landed.
-  const jump: Jump = (table, key) => {
-    const sentence = onJump(table, key);
+  const jump: Jump = (table, key, step) => {
+    const sentence = onJump(table, key, step);
     if (sentence) {
       setStatus(sentence);
       setOpen(false);
     }
     return sentence;
   };
+  useImperativeHandle(ref, () => ({ jump, compose: () => { setOpen(true); inputRef.current?.focus(); }, turns }));
 
   async function send(kind: TurnKind, text: string, replace?: number) {
     if (busy || !text.trim()) return;
@@ -165,6 +185,7 @@ export function Chat({ nameOf, runtime, disabled, onTurn, onJump, rowLinks }: {
     setStatus("Agent working…");
     setBusy(true);
     const res = await postTurn(text);
+    if (!alive.current) return;
     setBusy(false);
     setStatus(turnSentence(kind, res));
     if (res) onTurn(res);
@@ -178,6 +199,8 @@ export function Chat({ nameOf, runtime, disabled, onTurn, onJump, rowLinks }: {
 
   return (
     <section
+      id="chat" // the "Skip to chat" target
+      tabIndex={-1}
       aria-label="Chat"
       className="chat absolute bottom-4 left-1/2 flex w-[min(880px,100%-32px)] -translate-x-1/2 flex-col gap-2 rounded-lg p-2 shadow-float"
     >
@@ -243,22 +266,28 @@ export function Chat({ nameOf, runtime, disabled, onTurn, onJump, rowLinks }: {
         >
           {open ? "Hide chat" : `Chat (${turns})`}
         </button>
-        <textarea
-          ref={inputRef}
-          rows={1}
-          aria-label="Ask the agent"
-          value={draft}
-          disabled={disabled || waiting}
-          placeholder={waiting ? "Approve or reject the pending write first…" : "Ask the agent"}
-          onChange={(ev) => setDraft(ev.target.value)}
-          onKeyDown={(ev) => {
-            if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) {
-              ev.preventDefault();
-              send("ask", draft);
-            }
-          }}
-          className="max-h-40 min-h-8 flex-1 resize-none rounded-sm border border-line bg-bg px-2 py-1 [field-sizing:content] placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
-        />
+        <Tip label="Ask the agent" keys="/">
+          <textarea
+            ref={inputRef}
+            rows={1}
+            aria-label="Ask the agent"
+            aria-keyshortcuts="/"
+            value={draft}
+            disabled={disabled || waiting}
+            placeholder={waiting ? "Approve or reject the pending write first…" : "Ask the agent"}
+            onChange={(ev) => setDraft(ev.target.value)}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) {
+                ev.preventDefault();
+                send("ask", draft);
+              } else if (ev.key === "Escape" && !waiting) { // fold, and focus the table
+                setOpen(false);
+                onLeave();
+              }
+            }}
+            className="max-h-40 min-h-8 flex-1 resize-none rounded-sm border border-line bg-bg px-2 py-1 [field-sizing:content] placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
+          />
+        </Tip>
         <button
           type="submit"
           disabled={disabled || waiting || busy || !draft.trim()}

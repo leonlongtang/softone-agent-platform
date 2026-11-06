@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Chat } from "@/components/chat";
+import { Chat, type ChatHandle, type Jump } from "@/components/chat";
 import { DataTable } from "@/components/data-table";
+import { Dialogs, type DialogState, NAME, type Runtime, RuntimeMenu, type Tool } from "@/components/runtime-menu";
+import { Tip } from "@/components/ui/tooltip";
 import { type Row, type TableChanges, tableRows, turnChanges } from "@/lib/changes";
 import {
-  applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, type TraceCall, type TurnResponse, type View,
+  applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, stepChange, type TraceCall, type TurnResponse,
+  type View,
 } from "@/lib/format";
 
 const TABLES = ["customers", "items", "orders", "order_items", "invoices_business", "payments"];
 
 interface Info {
-  runtime: "ollama" | "claude";
+  runtime: Runtime;
+  escalation: boolean; // a failed Ollama tool call is rerun on Claude
   mock: boolean;
   keys: Record<string, string[]>;
+  tools: Record<string, Tool[]>;
 }
 
 type State =
@@ -23,6 +28,17 @@ type State =
 
 const getJson = <T,>(url: string) =>
   fetch(url).then((r) => (r.ok ? (r.json() as Promise<T>) : Promise.reject(new Error(`${url}: HTTP ${r.status}`))));
+const post = (url: string, body: object = {}) =>
+  fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+/** Focus in a text field: the punctuation keys type there instead. */
+const isTyping = (t: EventTarget | null) =>
+  t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement ||
+  (t instanceof HTMLInputElement && !["checkbox", "radio", "button"].includes(t.type)) ||
+  (t instanceof HTMLElement && t.isContentEditable);
+/** Focus in a dialog or menu: no workspace key reaches behind it. */
+const inOverlay = (t: EventTarget | null) => t instanceof HTMLElement && !!t.closest('[role="dialog"], [role="alertdialog"], [role="menu"]');
+const focusTable = () => document.getElementById("table")?.focus();
 
 async function load(): Promise<State> {
   try {
@@ -86,37 +102,120 @@ export function Workspace() {
     return changedOnly ? all.filter((i) => i.change) : all;
   }, [rows, pk, tableChanges, changedOnly]);
   const shown = useMemo(() => applyView(items, view, nameOf), [items, view, nameOf]);
-  // A chip or row link (DESIGN.md → What changed → Jumping). `seq` makes a repeat click on the same row jump again.
-  const [jumpTo, setJumpTo] = useState<{ table: string; index: number; seq: number } | null>(null);
+  // A chip, row link or `]`/`[` (DESIGN.md → What changed → Jumping). `seq` makes a repeat click on the same row jump
+  // again; `key` is where it landed, so `]` steps on from there; `still`: a key press, so a static outline.
+  const [jumpTo, setJumpTo] = useState<{ table: string; key: unknown[]; index: number; seq: number; still?: boolean } | null>(null);
   const jumps = useRef(0);
-  function jump(t: string, key?: unknown[]): string {
-    const j = db?.[t] && jumpTarget(tableRows(db[t], keys[t] ?? [], changes[t]), t, keys[t] ?? [], changes, key);
-    if (!j) return "";
+  const jump: Jump = (t, key, step) => {
+    const pkT = keys[t] ?? [], all = db?.[t] && tableRows(db[t], pkT, changes[t]);
+    const j = all && jumpTarget(all, t, pkT, changes, key, !!key && !step);
+    if (!all || !j) return "";
     setTable(t);
     setView(t, DEFAULT_VIEW);
     setOnlyChanged(false);
-    setJumpTo({ table: t, index: j.index, seq: ++jumps.current });
+    setJumpTo({ table: t, key: pkT.map((k) => all[j.index].row[k]), index: j.index, seq: ++jumps.current, still: step });
     return j.sentence;
+  };
+
+  // The runtime menu and its dialogs (DESIGN.md → Flows 3–5). New chat and Reset remount the chat, with a note.
+  const chatRef = useRef<ChatHandle>(null);
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [chat, setChat] = useState({ key: 0, notice: "" });
+  const clearTurn = (notice: string) => {
+    setChanges({});
+    setOnlyChanged(false);
+    setJumpTo(null);
+    setChat((c) => ({ key: c.key + 1, notice }));
+  };
+  async function newChat(to: Runtime) {
+    let res: Info & { error?: string };
+    try {
+      res = await (await post("/api/chat", { runtime: to })).json();
+    } catch {
+      setState({ status: "down" });
+      return;
+    }
+    setState((s) => (s.status === "ok" ? { ...s, info: { ...s.info, runtime: res.runtime } } : s));
+    // A runtime that didn't start (e.g. Ollama not running) is retried on the next turn, which shows the error with Retry.
+    clearTurn(res.error ? `${NAME[to]} didn't start: ${res.error}` : to === "claude" ? "Claude runtime: each turn is a billed API call." : "");
   }
+  async function reset() {
+    try {
+      if (!(await post("/api/reset")).ok) throw new Error("reset failed");
+    } catch {
+      setState({ status: "down" });
+      return;
+    }
+    clearTurn("Demo data reset.");
+    setState(await load());
+  }
+
+  // Keys (DESIGN.md → Keyboard → Keys), by physical key so they work on the Greek layout too.
+  const filterRef = useRef<HTMLInputElement>(null);
+  function onKey(e: KeyboardEvent) {
+    if (dialog || inOverlay(e.target)) return;
+    if (e.code === "KeyF" && (e.ctrlKey || e.metaKey) && !e.altKey) {
+      const f = filterRef.current; // pressed again in the filter, or in the composer: the browser's find
+      if (!f || f.disabled || e.target === f || e.target instanceof HTMLTextAreaElement) return;
+      e.preventDefault();
+      f.focus();
+      f.select();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+    if (e.code === "Slash" && e.shiftKey) setDialog("keys");
+    else if (e.code === "Slash") chatRef.current?.compose();
+    else if (e.code === "BracketRight" || e.code === "BracketLeft") {
+      const to = stepChange(changes, jumpTo, e.code === "BracketRight" ? 1 : -1);
+      if (to) chatRef.current?.jump(to.table, to.key, true);
+    } else return;
+    e.preventDefault(); // `/` would otherwise type into the composer it just focused
+  }
+  useEffect(() => { // re-bound each render, so it sees the current changes and dialog
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   const linksFor = (call: TraceCall) => (db ? rowLinks(call, db, keys) : []);
   const changedIn = (t: string) => changes[t]?.counts.total ?? 0;
   const count = (t: string) => (db ? (db[t]?.length ?? 0).toLocaleString("en-GB") : "—");
-  const runtime = state.status === "ok" ? (state.info.runtime === "claude" ? "Claude" : "Ollama") : "…";
+  const info = state.status === "ok" ? state.info : null;
+  // The table list: ↑ ↓ Home End move and select (DESIGN.md → Keyboard → Keys).
+  function onListKey(e: React.KeyboardEvent<HTMLUListElement>) {
+    const i = TABLES.indexOf(table), n = TABLES.length;
+    const to = ({ ArrowDown: (i + 1) % n, ArrowUp: (i - 1 + n) % n, Home: 0, End: n - 1 } as Record<string, number>)[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    setTable(TABLES[to]);
+    setJumpTo(null);
+    e.currentTarget.querySelectorAll("button")[to]?.focus();
+  }
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-line bg-panel px-4">
+        <a
+          href="#chat"
+          className="sr-only rounded-sm bg-primary px-2 py-1 text-primary-foreground focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50"
+        >
+          Skip to chat
+        </a>
         <span aria-hidden className="size-3 rounded-sm bg-primary" />
         <span className="text-lg font-semibold">SoftOne Agents</span>
-        {/* Runtime menu: ticket 09 fills it. */}
-        <button type="button" className="ml-auto h-8 rounded-sm px-2 text-sm text-muted-foreground hover:bg-raised focus-visible:outline-2 focus-visible:outline-ring">
-          {runtime}
-        </button>
+        <RuntimeMenu
+          runtime={info?.runtime ?? null}
+          escalation={!!info?.escalation}
+          ready={!!info}
+          canReset={!!db}
+          hasTurns={() => !!chatRef.current?.turns}
+          setDialog={setDialog}
+          onNewChat={newChat}
+          onReset={reset}
+        />
       </header>
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Tables" className="w-[220px] shrink-0 border-r border-line bg-panel p-2">
+        <nav aria-label="Tables" className="flex w-[220px] shrink-0 flex-col border-r border-line bg-panel p-2">
           <h2 className="px-2 pt-1.5 pb-0.5 text-xs tracking-[.05em] text-muted-foreground uppercase">Tables</h2>
-          <ul>
+          <ul onKeyDown={onListKey}>
             {TABLES.map((t) => (
               <li key={t}>
                 <button
@@ -140,6 +239,14 @@ export function Workspace() {
             <input type="checkbox" checked={changedOnly} disabled={!hasChanges} onChange={(e) => setOnlyChanged(e.target.checked)} className="accent-primary" />
             Only rows changed this turn
           </label>
+          <button
+            type="button"
+            disabled={!info}
+            onClick={() => setDialog("tools")}
+            className="mt-auto flex h-8 items-center rounded-sm px-2 text-left text-muted-foreground hover:bg-raised hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+          >
+            Agent tools
+          </button>
         </nav>
         <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line bg-panel px-4">
@@ -152,15 +259,25 @@ export function Workspace() {
             {changedIn(table) > 0 && (
               <span className="rounded-sm bg-warn-soft px-1.5 text-sm text-warn">{changedIn(table)} changed this turn</span>
             )}
-            <input
-              type="search"
-              aria-label={`Filter ${labelFor(table)}`}
-              placeholder="Filter"
-              value={view.filter}
-              disabled={!db}
-              onChange={(e) => setView(table, { ...view, filter: e.target.value })}
-              className="ml-auto h-8 w-60 rounded-sm border border-line bg-bg px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
-            />
+            <Tip label="Filter" keys="Ctrl/Cmd+F">
+              <input
+                ref={filterRef}
+                type="search"
+                aria-label={`Filter ${labelFor(table)}`}
+                aria-keyshortcuts="Control+F Meta+F"
+                placeholder="Filter"
+                value={view.filter}
+                disabled={!db}
+                onChange={(e) => setView(table, { ...view, filter: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key !== "Escape") return;
+                  e.preventDefault(); // the first Esc clears, the second leaves for the table
+                  if (view.filter) setView(table, { ...view, filter: "" });
+                  else focusTable();
+                }}
+                className="ml-auto h-8 w-60 rounded-sm border border-line bg-bg px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+              />
+            </Tip>
           </div>
           <div className="min-h-0 flex-1">
             {state.status === "loading" && <Notice><p className="text-muted-foreground">Loading…</p></Notice>}
@@ -200,10 +317,11 @@ export function Workspace() {
             )}
           </div>
           {/* Last in the DOM, though it floats on top (DESIGN.md → Keyboard → Focus). */}
-          <Chat nameOf={nameOf} runtime={state.status === "ok" ? state.info.runtime : ""} disabled={state.status !== "ok"} onTurn={onTurn}
-            onJump={jump} rowLinks={linksFor} />
+          <Chat key={chat.key} ref={chatRef} notice={chat.notice} nameOf={nameOf} runtime={info?.runtime ?? ""} disabled={!info}
+            onTurn={onTurn} onJump={jump} onLeave={focusTable} rowLinks={linksFor} />
         </main>
       </div>
+      <Dialogs dialog={dialog} setDialog={setDialog} tools={info?.tools ?? {}} />
     </div>
   );
 }

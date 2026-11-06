@@ -58,7 +58,7 @@ function Cell({ column, value, nameOf }: { column: string; value: unknown; nameO
 export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, changed, jump }: {
   name: string; rows: Row[]; items: Item[]; pk: string[]; nameOf: NameOf; sort: Sort; onSort: (column: string) => void;
   changed: number; // rows this turn changed in the whole table
-  jump?: { index: number; seq: number }; // a chip or row link landed here: index into `items`
+  jump?: { index: number; seq: number; still?: boolean }; // a jump landed here: index into `items`; `still`: from a key
 }) {
   const columns = useMemo(() => {
     const keys = Object.keys(rows[0] ?? Object.fromEntries(pk.map((k) => [k, null])));
@@ -107,6 +107,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
   return (
     <div
       ref={scrollRef}
+      id="table" // Esc from the composer or filter lands here
       role="region"
       aria-label={`${labelFor(name)} table, ${n.toLocaleString("en-GB")} rows${changed ? `, ${changed} changed this turn` : ""}`}
       tabIndex={0}
@@ -157,7 +158,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
                 key={row.id}
                 aria-rowindex={v.index + 2}
                 data-change={change?.op}
-                data-flash={flash === row.id || undefined}
+                data-flash={flash === row.id ? (jump?.still ? "static" : "true") : undefined} // keys never animate (DESIGN.md → Motion)
                 className="group h-(--row)"
               >
                 <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${FLASH_FIRST} ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>

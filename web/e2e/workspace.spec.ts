@@ -1,4 +1,4 @@
-// Flows 1 to 4 from DESIGN.md → Testing → Flows covered. The fake blocks create_order until "yes",
+// Flows 1 to 5 from DESIGN.md → Testing → Flows covered. The fake blocks create_order until "yes",
 // then inserts order 5006.
 import { expect, type Page, test } from "@playwright/test";
 
@@ -96,4 +96,58 @@ test("backend down: Can't reach the API, with Retry", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Can't reach the API")).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+});
+
+/** A keydown by physical key with a non-US `key`, as a Greek layout sends it; true if the page claimed it. */
+const press = (page: Page, init: { code: string; key: string; shiftKey?: boolean; ctrlKey?: boolean }) =>
+  page.evaluate((i) => !(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...i })), init);
+
+test("keyboard approve: Enter on the card writes nothing; Tab, Enter approves; Esc, ] lands on 5006", async ({ page }) => {
+  await page.goto("/");
+  const table = page.getByRole("region", { name: /^Orders table/ });
+  await expect(table).toBeVisible();
+
+  // ? opens the shortcuts dialog (Shift + the Slash key, whatever the layout prints).
+  await press(page, { code: "Slash", key: "΄", shiftKey: true });
+  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // Ctrl+F focuses the filter; pressed again there, it's left to the browser's find. Esc on an empty filter: the table.
+  const filter = page.getByRole("searchbox", { name: "Filter Orders" });
+  expect(await press(page, { code: "KeyF", key: "φ", ctrlKey: true })).toBe(true);
+  await expect(filter).toBeFocused();
+  expect(await press(page, { code: "KeyF", key: "φ", ctrlKey: true })).toBe(false);
+  await page.keyboard.press("Escape");
+  await expect(table).toBeFocused();
+
+  // / focuses the composer; ask for a write.
+  await press(page, { code: "Slash", key: "." });
+  const composer = page.getByRole("textbox", { name: "Ask the agent" });
+  await expect(composer).toBeFocused();
+  await page.keyboard.type("Create an order for customer 47");
+  await page.keyboard.press("Enter");
+  let turns = 0;
+  page.on("request", (r) => { if (r.url().endsWith("/api/turn")) turns++; });
+  const card = page.getByRole("group", { name: "Pending write: needs your approval" });
+  await expect(card).toBeFocused();
+
+  await page.keyboard.press("Enter"); // a stray Enter on the card
+  await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(card.getByRole("button", { name: "Approve" })).toBeFocused();
+  expect(turns).toBe(0); // the stray Enter sent nothing (a decision is a request, sent on the press)
+  await expect(order5006(page)).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(order5006(page)).toHaveAttribute("data-change", "insert");
+  await expect(composer).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(table).toBeFocused();
+  await press(page, { code: "BracketRight", key: "ψ" });
+  await expect(page.getByRole("navigation", { name: "Tables" }).getByRole("button", { name: /^Orders/ })).toHaveAttribute("aria-current", "true");
+  await expect(table).toBeFocused();
+  await expect(order5006(page)).toBeInViewport();
+  await expect(order5006(page)).toHaveAttribute("data-flash", "static"); // keys don't animate
+  await expect(page.getByRole("status")).toHaveText(/^Orders, row \d+: added\. Change 1 of 1\.$/);
 });

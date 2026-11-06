@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
-  applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, jumpTarget, labelFor, matches, nameIndex, nextSort, pendingArgs, rowLinks, statusToken, turnError, turnSentence,
+  applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, jumpTarget, labelFor, matches, nameIndex, nextSort, pendingArgs, rowLinks, statusToken, stepChange, turnError, turnSentence,
   type Sort, type TraceCall,
 } from "./format.ts";
 
@@ -182,6 +182,23 @@ test("a chip or row-link jump: where it lands and what it says", () => {
   assert.deepEqual(jumpTarget(items, "items", ["id"], changes, [1003]), { index: 2, sentence: "Items, row 3." });
   assert.equal(jumpTarget(items, "items", ["id"], changes, [9999]), null);
   assert.equal(jumpTarget(tableRows([{ id: 1 }], ["id"], undefined), "items", ["id"], {}), null);
+  // A `]` step to a named changed row: counted like a chip.
+  assert.deepEqual(jumpTarget(items, "items", ["id"], changes, [1003], false), { index: 2, sentence: "Items, row 3: changed stock. Change 3 of 3." });
+});
+
+test("] and [ step through every change in chip order, wrapping", () => {
+  const changes = turnChanges([
+    { table: "orders", op: "insert", key: [5006], before: null, after: null, changed: [] },
+    { table: "items", op: "update", key: [1003], before: null, after: null, changed: ["stock"] },
+    { table: "items", op: "update", key: [1002], before: null, after: null, changed: ["price"] },
+  ]);
+  assert.deepEqual(stepChange(changes, null, 1), { table: "orders", key: [5006] });
+  assert.deepEqual(stepChange(changes, null, -1), { table: "items", key: [1003] });
+  assert.deepEqual(stepChange(changes, { table: "orders", key: [5006] }, 1), { table: "items", key: [1002] }); // key order
+  assert.deepEqual(stepChange(changes, { table: "items", key: [1003] }, 1), { table: "orders", key: [5006] }); // wraps
+  assert.deepEqual(stepChange(changes, { table: "orders", key: [5006] }, -1), { table: "items", key: [1003] });
+  assert.deepEqual(stepChange(changes, { table: "customers", key: [47] }, 1), { table: "orders", key: [5006] }); // not a change: from the start
+  assert.equal(stepChange({}, null, 1), null);
 });
 
 test("row links: existing rows a blocked call names, none for creates", () => {

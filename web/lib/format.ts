@@ -228,18 +228,34 @@ export function turnError(runtime: string, r: TurnResponse | null): string {
 /**
  * Where a jump lands (DESIGN.md → What changed → Jumping) and what the status line says. `items` is the table in
  * key order with its changes (`tableRows`): a chip jump resets the view, so the index is the rendered row too.
- * No `key`: a chip, the table's first change. A `key`: a row link. Null when there's no such row.
+ * No `key`: a chip, the table's first change. A `key`: a row link, or with `link` false a `]`/`[` step, which is
+ * announced like a chip. Null when there's no such row.
  */
 export function jumpTarget(
   items: { row: Row; change?: RowChange }[], table: string, pk: string[], changes: Record<string, TableChanges>, key?: unknown[],
+  link = key !== undefined,
 ): { index: number; sentence: string } | null {
   const index = key ? items.findIndex((i) => compareKeys(pk.map((k) => i.row[k]), key) === 0) : items.findIndex((i) => i.change);
   if (index < 0) return null;
   const where = `${labelFor(table)}, row ${index + 1}`, change = items[index].change;
-  if (key || !change) return { index, sentence: `${where}.` };
+  if (link || !change) return { index, sentence: `${where}.` };
   const tables = Object.keys(changes), count = (ts: string[]) => ts.reduce((n, t) => n + changes[t].counts.total, 0);
-  const nth = count(tables.slice(0, tables.indexOf(table))) + 1;
+  const nth = count(tables.slice(0, tables.indexOf(table))) + items.slice(0, index).filter((i) => i.change).length + 1;
   return { index, sentence: `${where}: ${changeNote(change).replace(":", "")}. Change ${nth} of ${count(tables)}.` };
+}
+
+/**
+ * `]` / `[` (DESIGN.md → Keyboard → Keys): the next or previous changed row after `from`, across tables in chip order
+ * and rows in key order, wrapping around. From nowhere (or a row that isn't a change), the first or last. Null without changes.
+ */
+export function stepChange(
+  changes: Record<string, TableChanges>, from: { table: string; key: unknown[] } | null, dir: 1 | -1,
+): { table: string; key: unknown[] } | null {
+  const all = Object.entries(changes).flatMap(([table, c]) =>
+    [...c.rows.keys()].map((k) => JSON.parse(k) as unknown[]).sort(compareKeys).map((key) => ({ table, key })));
+  if (!all.length) return null;
+  const at = from ? all.findIndex((c) => c.table === from.table && compareKeys(c.key, from.key) === 0) : -1;
+  return all[at < 0 ? (dir > 0 ? 0 : all.length - 1) : (at + dir + all.length) % all.length];
 }
 
 /** A link on the approval card to an existing row the blocked call names, e.g. `Items #42`. */
