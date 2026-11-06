@@ -32,8 +32,8 @@
   --glass-blur: 3px;
 
   /* Type: IBM Plex Sans for UI and tables, Source Code Pro for ids, tool names and code. Both cover Greek. */
-  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "Source Code Pro", ui-monospace, monospace;
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;      /* next/font: "IBM Plex Sans" + metric-matched fallback */
+  --font-mono: var(--font-source-code-pro), ui-monospace, monospace; /* next/font: "Source Code Pro" + fallback */
   --text-xs: 11px;      /* column headers, badges, section labels */
   --text-sm: 12px;      /* chat meta, tool calls, approval details */
   --text-table: 13.5px; /* table cells (tabular-nums) */

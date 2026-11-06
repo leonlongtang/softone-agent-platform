@@ -8,8 +8,8 @@ Implements: `DESIGN.md` → Stack; Visual identity (theme, typography, token nam
 
 The untracked `web/node_modules`, `web/.next` and `web/tsconfig.tsbuildinfo` are prototype leftovers: delete them before scaffolding, and git-ignore the build output. `tokens.css` already exists; keep its values.
 
-- [ ] `npm --prefix web run dev` with `python -m agent_platform.web` running shows the brand and the runtime from `/api/info`
-- [ ] Dark by default; `data-theme="light"` switches every token; scrollbars follow (`color-scheme`)
-- [ ] Greek text renders in both fonts (no fallback font)
-- [ ] Viewport meta includes `interactive-widget=resizes-content`
-- [ ] CI Node job passes; `.claude/launch.json` still starts both servers
+- [x] `npm --prefix web run dev` with `python -m agent_platform.web` running shows the brand and the runtime from `/api/info`
+- [x] Dark by default; `data-theme="light"` switches every token; scrollbars follow (`color-scheme`)
+- [x] Greek text renders in both fonts (no fallback font)
+- [x] Viewport meta includes `interactive-widget=resizes-content`
+- [x] CI Node job passes; `.claude/launch.json` still starts both servers
