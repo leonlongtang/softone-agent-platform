@@ -52,6 +52,7 @@ def test_api_turns_report_trace_pending_and_diff(tmp_path: Path) -> None:
         yield FakeOrchestrator(db)
 
     with TestClient(create_app(open_chat=open_chat, db_path=db)) as client:
+        assert client.get("/").status_code == 404  # the UI is web/ now; this server is the API only
         assert client.post("/api/chat", json={"runtime": "ollama"}).json()["ready"]
         info = client.get("/api/info").json()
         assert any(t["write"] for t in info["tools"]["sales"])

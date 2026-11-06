@@ -104,7 +104,7 @@ Decided 2026-11-05 (redesign ticket 02), with the user.
 - **Tables:** TanStack Table (sorting, filtering, column model) + TanStack Virtual (only on-screen rows render). `/api/db` doesn't page: whole tables, sorted and filtered in the browser (see Large tables).
 - **Backend contract:** Starlette stays the API, and `/api/*` stays as it is. Next proxies `/api/*` to `http://127.0.0.1:8000` with a `rewrites` rule in `next.config.ts`, so the browser sees one origin and the server needs no CORS.
 - **Running it:** two processes in dev: `python -m agent_platform.web` (API on :8000) and `npm --prefix web run dev` (UI on :3000). `.claude/launch.json` already defines both. A prebuilt bundle for reviewers isn't needed for now.
-- **Where things live:** `web/` at the repo root (as on `prototype/frontend-layout`), with `web/app/tokens.css`. The old `agent_platform/web/index.html` keeps working until the new UI replaces it.
+- **Where things live:** `web/` at the repo root (as on `prototype/frontend-layout`), with `web/app/tokens.css`. The old `agent_platform/web/index.html` was deleted once the new UI replaced it (web-client 02); line references above are to that file as audited.
 - **CI:** a Node job (`npm ci`, lint, `next build`) is added together with the first implementation ticket, not before.
 - **From the prototype:** the scaffold, Tailwind v4 / shadcn setup and the "Table editor" pieces may be carried over. The prototype's mock data, variant switcher and docked resizable chat are not.
 

@@ -11,7 +11,7 @@ from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from agent_platform.chat import Chat, ChatUnavailable, NothingPending
@@ -20,8 +20,6 @@ from agent_platform.graph import escalation_enabled, open_orchestrator
 from agent_platform.specs import SPECS
 from agent_platform.web import db
 from config import load_config
-
-INDEX = Path(__file__).resolve().parent / "index.html"
 
 
 async def _tool_catalog() -> dict[str, list[dict[str, Any]]]:
@@ -44,9 +42,6 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
 
     def info() -> dict[str, Any]:
         return {"runtime": chat.runtime, "ready": chat.ready, "escalation": escalation_enabled()}
-
-    async def index(_: Request) -> FileResponse:
-        return FileResponse(INDEX)
 
     async def get_info(_: Request) -> JSONResponse:
         keys = db.primary_keys(db_path) if mock else {}
@@ -110,7 +105,6 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
 
     return Starlette(
         routes=[
-            Route("/", index),
             Route("/api/info", get_info),
             Route("/api/chat", new_chat, methods=["POST"]),
             Route("/api/turn", turn, methods=["POST"]),
