@@ -9,6 +9,10 @@ test.beforeEach(async ({ request }) => {
 async function askForWrite(page: Page) {
   await page.goto("/");
   await expect(page.getByRole("region", { name: /^Orders table/ })).toBeVisible();
+  // Rows must be --row tall: the virtualizer's ROW assumes it, and rem sizes (h-8) come out 28px here.
+  const heights = await page.locator("tbody tr[aria-rowindex]").first().evaluate((tr) =>
+    [tr.getBoundingClientRect().height, parseFloat(getComputedStyle(tr).getPropertyValue("--row"))]);
+  expect(heights[0]).toBe(heights[1]);
   const composer = page.getByRole("textbox", { name: "Ask the agent" });
   await composer.fill("Create an order for customer 47");
   await composer.press("Enter");

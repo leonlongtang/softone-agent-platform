@@ -441,7 +441,7 @@ Decided 2026-11-06 (ticket 09), with the user. The goal is one browser test that
 - **Playwright:** `@playwright/test` lives in `web/`, with its specs in `web/e2e/`. Its `webServer` config starts both servers and waits on their ports.
 - **Fake backend:** `tests/e2e_server.py` is a test-only entry point. It builds a throwaway mock DB and serves `create_app(open_chat=…)` with `FakeOrchestrator` on :8000. `FakeOrchestrator` moves from `tests/test_web.py` to `tests/fakes.py`, so the pytest and Playwright suites share it. `python -m agent_platform.web` gets no test flag.
 - **The fake stays as it is:** it blocks `create_order` until the user says "yes", then inserts order 5006. Nothing that needs a scriptable fake is covered, except one row-link check (ticket 08): a canned `/api/turn` reply (Playwright interception, as in flow 4) blocks `update_item` on the last of 305 items, to prove a far-down jump lands.
-- **Which build:** in CI the test runs against `next build && next start`. Locally it runs against `next dev` and reuses one already running (`reuseExistingServer`). The fake API always starts fresh, so a real API on :8000 fails the run instead of sending the turns to Ollama.
+- **Which build:** in CI the test runs against `next build && next start`. Locally it runs against `next dev` and reuses one already running (`reuseExistingServer`). The fake API always starts fresh, so a real API on :8000 fails the run instead of sending the turns to Ollama. A reused `next dev` can keep serving an old `globals.css`: after editing it, check the served CSS has the change before debugging the rule, and restart the server if it doesn't.
 
 ### Flows covered
 
