@@ -7,7 +7,7 @@ import copy
 import logging
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from agent_platform.gate import WriteGate
 from agent_platform.graph import GATE_KEY, open_orchestrator
@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 class ChatUnavailable(RuntimeError):
     """The orchestrator would not start (e.g. Ollama not running)."""
+
+
+class NothingPending(RuntimeError):
+    """A Decision arrived with no Pending write to decide on (e.g. a stale card after New chat)."""
 
 
 @dataclass
@@ -43,7 +47,7 @@ class Chat:
     ) -> None:
         self.runtime = runtime
         self._opener, self._snapshot = opener, snapshot
-        self._lock = asyncio.Lock()  # one turn / switch / close at a time
+        self._lock = asyncio.Lock()  # one turn / decide / switch / close at a time
         self._stack: AsyncExitStack | None = None
         self._app: Any = None
         self._state: dict[str, Any] = {"artifacts": {}}
@@ -54,31 +58,48 @@ class Chat:
 
     async def turn(self, text: str) -> TurnResult:
         async with self._lock:
-            if self._app is None:
-                await self._start()
-            before = self._snapshot() if self._snapshot else None
-            # The graph mutates artifacts in place; run on a copy so a failed Turn leaves the Chat as it was.
-            attempt = copy.deepcopy(self._state)
-            out: dict[str, Any] = {"response": "", "route": None, "runtime": None, "error": None}
-            try:
-                self._state = attempt = await self._app.ainvoke({**attempt, "user_text": text})
-                out.update(response=attempt.get("response") or "", route=attempt.get("route"))
-                out["runtime"] = attempt.get("runtime")
-            except Exception as exc:  # noqa: BLE001 - a failed turn shouldn't end the chat
-                logger.debug("turn failed", exc_info=True)
-                out["error"] = f"{type(exc).__name__}: {exc}"
-            trace = WriteGate(attempt["artifacts"].get(GATE_KEY)).trace
-            gate = self._state["artifacts"][GATE_KEY] = WriteGate(self._state["artifacts"].get(GATE_KEY))
-            for call in trace:  # a write the failed Turn already ran must never be approvable again
-                if call["status"] == "ran":
-                    gate.blocked.pop(call["tool"], None)
-            after = self._snapshot() if self._snapshot else None
-            return TurnResult(
-                trace=trace,
-                pending=gate.pending(),
-                changes=None if before is None else diff(before, after),
-                **out,
-            )
+            return await self._turn(text)
+
+    async def decide(self, decision: Literal["approve", "reject"]) -> TurnResult:
+        """Approve runs the Turn "yes" runs; Reject drops the Pending write without running the graph."""
+        async with self._lock:
+            gate = WriteGate(self._state["artifacts"].get(GATE_KEY))
+            if not gate.blocked:
+                raise NothingPending("Nothing is waiting for approval.")
+            if decision == "approve":
+                # ponytail: Approve is the Turn "yes" (gate.APPROVAL_WORDS, graph's follow-up routing), so it
+                # still runs the router. Upgrade path: approve on the gate directly and route to LAST_ROUTE_KEY.
+                return await self._turn("yes")
+            gate.blocked.clear()  # the same dict the Chat's state holds
+            changes = [] if self._snapshot else None  # Reject writes nothing
+            return TurnResult(response="", route=None, runtime=None, trace=[], pending=[], changes=changes, error=None)
+
+    async def _turn(self, text: str) -> TurnResult:
+        if self._app is None:
+            await self._start()
+        before = self._snapshot() if self._snapshot else None
+        # The graph mutates artifacts in place; run on a copy so a failed Turn leaves the Chat as it was.
+        attempt = copy.deepcopy(self._state)
+        out: dict[str, Any] = {"response": "", "route": None, "runtime": None, "error": None}
+        try:
+            self._state = attempt = await self._app.ainvoke({**attempt, "user_text": text})
+            out.update(response=attempt.get("response") or "", route=attempt.get("route"))
+            out["runtime"] = attempt.get("runtime")
+        except Exception as exc:  # noqa: BLE001 - a failed turn shouldn't end the chat
+            logger.debug("turn failed", exc_info=True)
+            out["error"] = f"{type(exc).__name__}: {exc}"
+        trace = WriteGate(attempt["artifacts"].get(GATE_KEY)).trace
+        gate = self._state["artifacts"][GATE_KEY] = WriteGate(self._state["artifacts"].get(GATE_KEY))
+        for call in trace:  # a write the failed Turn already ran must never be approvable again
+            if call["status"] == "ran":
+                gate.blocked.pop(call["tool"], None)
+        after = self._snapshot() if self._snapshot else None
+        return TurnResult(
+            trace=trace,
+            pending=gate.pending(),
+            changes=None if before is None else diff(before, after),
+            **out,
+        )
 
     async def switch(self, runtime: str) -> None:
         """End this Chat and start one on `runtime` now; raises ChatUnavailable if it won't start."""

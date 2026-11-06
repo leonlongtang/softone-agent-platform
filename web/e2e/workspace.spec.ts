@@ -136,9 +136,15 @@ test("row link: an update naming an existing item jumps far down the table", asy
 
 test("reject: nothing was written and no row is highlighted", async ({ page }) => {
   await askForWrite(page);
+  const bodies: unknown[] = [];
+  page.on("request", (r) => { if (r.url().endsWith("/api/turn")) bodies.push(r.postDataJSON()); });
   await page.getByRole("button", { name: "Reject" }).click();
 
   await expect(page.getByText("Okay, nothing was written.")).toBeVisible();
+  expect(bodies).toEqual([{ decision: "reject" }]); // a Decision, not the word "no": the agent doesn't run again
+  const cards = page.getByRole("group", { name: "Pending write: needs your approval" });
+  await expect(cards).toHaveCount(1); // the decided card only: no second one under it
+  await expect(cards).toContainText("Rejected");
   await expect(page.locator("tr[data-change]")).toHaveCount(0);
   await expect(order5006(page)).toHaveCount(0);
 });

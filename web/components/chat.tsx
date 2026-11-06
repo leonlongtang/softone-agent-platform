@@ -17,8 +17,6 @@ const EXAMPLES = [
   "How many units of item 1002 are in stock?",
   "Show order 5005",
 ];
-// Approve and Reject send the same replies the old UI sends; the write gate approves on "yes".
-const REPLY: Record<Decision, string> = { approve: "yes", reject: "no" };
 
 interface Entry {
   id: number;
@@ -37,9 +35,10 @@ const lang = (s: string) => (isGreek(s) ? "el" : undefined);
 const isCoarse = () => matchMedia("(pointer: coarse)").matches;
 const block = "rounded-md bg-raised px-3 py-2"; // every text block is solid: text never sits on the glass
 
-async function postTurn(text: string): Promise<TurnResponse | null> {
+/** `{text}` for anything typed, `{decision}` for the Approve and Reject buttons. */
+async function postTurn(body: { text: string } | { decision: Decision }): Promise<TurnResponse | null> {
   try {
-    const r = await fetch("/api/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const r = await fetch("/api/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     return (await r.json()) as TurnResponse;
   } catch {
     return null;
@@ -188,7 +187,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
     if (kind === "ask" && text === draft) setDraft(""); // an example chip keeps the draft
     setStatus("Agent working…");
     setBusy(true);
-    const res = await postTurn(text);
+    const res = await postTurn(kind === "ask" ? { text } : { decision: kind });
     if (!alive.current) return;
     setBusy(false);
     setStatus(turnSentence(kind, res));
@@ -248,7 +247,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
             cardRef={cardRef}
             onJump={jump}
             rowLinks={rowLinks}
-            onDecide={(k) => send(k, REPLY[k])}
+            onDecide={(k) => send(k, k)}
             onRetry={() => send(e.kind, e.text, e.id)}
           />
         ))}

@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
 
-from agent_platform.chat import Chat, ChatUnavailable
+from agent_platform.chat import Chat, ChatUnavailable, NothingPending
 from agent_platform.gate import WRITE_TOOLS
 from agent_platform.graph import escalation_enabled, open_orchestrator
 from agent_platform.specs import SPECS
@@ -63,13 +63,23 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
         return JSONResponse(info())
 
     async def turn(request: Request) -> JSONResponse:
-        text = str((await request.json()).get("text", "")).strip()
-        if not text:
+        body = await request.json()
+        if not isinstance(body, dict) or ("text" in body) == ("decision" in body):
+            return JSONResponse({"error": 'send exactly one of "text" or "decision"'}, status_code=400)
+        if "decision" in body:
+            if body["decision"] not in ("approve", "reject"):
+                return JSONResponse({"error": f"unknown decision {body['decision']!r}"}, status_code=400)
+            call = chat.decide(body["decision"])
+        elif text := str(body["text"]).strip():
+            call = chat.turn(text)
+        else:
             return JSONResponse({"error": "empty message"}, status_code=400)
         try:
-            result = await chat.turn(text)
+            result = await call
         except ChatUnavailable as exc:
             return JSONResponse({"error": str(exc)}, status_code=503)
+        except NothingPending as exc:  # e.g. a stale card after New chat
+            return JSONResponse({"error": str(exc)}, status_code=409)
         out: dict[str, Any] = {"trace": result.trace, "pending": bool(result.pending), "diff": result.changes}
         if result.error:
             out["error"] = result.error

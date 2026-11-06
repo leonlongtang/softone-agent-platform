@@ -15,8 +15,10 @@ class FakeOrchestrator:
 
     def __init__(self, db: Path) -> None:
         self.db = db
+        self.texts: list[str] = []  # every user_text that reached the agent
 
     async def ainvoke(self, state: dict) -> dict:
+        self.texts.append(state["user_text"])
         gate = state["artifacts"].setdefault(GATE_KEY, WriteGate())
         gate.start_turn(state["user_text"])
         if gate.check("create_order", {"customer_id": 47}) is None:
