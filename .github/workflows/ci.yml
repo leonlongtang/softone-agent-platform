@@ -31,6 +31,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npm run typecheck
       - run: npm test
       - run: npm run build
       # Playwright against `next start` and the fake API (tests/e2e_server.py, started by uv). Chromium only.

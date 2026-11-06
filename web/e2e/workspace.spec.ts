@@ -1,4 +1,4 @@
-// Flows 1 to 5 from DESIGN.md → Testing → Flows covered. The fake blocks create_order until "yes",
+// Flows 1 to 6 from DESIGN.md → Testing → Flows covered. The fake blocks create_order until "yes",
 // then inserts order 5006.
 import { expect, type Page, test } from "@playwright/test";
 
@@ -150,4 +150,43 @@ test("keyboard approve: Enter on the card writes nothing; Tab, Enter approves; E
   await expect(order5006(page)).toBeInViewport();
   await expect(order5006(page)).toHaveAttribute("data-flash", "static"); // keys don't animate
   await expect(page.getByRole("status")).toHaveText(/^Orders, row \d+: added\. Change 1 of 1\.$/);
+});
+
+test("runtime menu: confirms cancel cleanly, the switch starts a new chat, Reset reseeds, the theme flips", async ({ page }) => {
+  await askForWrite(page);
+  await page.getByRole("button", { name: "Approve" }).click();
+  const changed = page.locator("tr[data-change]");
+  await expect(changed).toHaveCount(1);
+
+  const menu = page.getByRole("button", { name: /^(Ollama|Claude)/ });
+  const open = async (item: string) => {
+    await menu.click();
+    await page.getByRole(item.includes("·") ? "menuitemradio" : "menuitem", { name: item }).click();
+  };
+  for (const item of ["New chat", "Claude · paid per turn", "Reset demo data…"]) {
+    await open(item);
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(changed).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Chat (1)" })).toBeVisible();
+    await expect(menu).toHaveText(/Ollama/);
+  }
+
+  await open("Claude · paid per turn");
+  await expect(page.getByRole("dialog")).toContainText("billed");
+  await page.getByRole("button", { name: "Switch to Claude" }).click();
+  await expect(menu).toHaveText(/Claude/);
+  await expect(page.getByText("Ask the sales, inventory or finance agent.")).toBeVisible(); // a new, empty chat
+  await expect(changed).toHaveCount(0);
+  await expect(order5006(page)).toHaveCount(1); // the database is not touched
+
+  await open("Reset demo data…");
+  await page.getByRole("button", { name: "Reset demo data" }).click();
+  await expect(order5006(page)).toHaveCount(0);
+
+  const meta = page.locator('meta[name="theme-color"]');
+  await expect(meta).toHaveAttribute("content", "#171513");
+  await open("Light theme");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(meta).toHaveAttribute("content", "#f6f4f0");
 });

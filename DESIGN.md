@@ -2,12 +2,14 @@
 
 The single source of truth for the operator workspace redesign. Map: `.scratch/frontend-redesign/map.md`.
 
+"Redesign ticket NN" is where a decision was made (`.scratch/frontend-redesign/issues/`). Build tickets are written `frontend-build#NN` (`.scratch/frontend-build/issues/`).
+
 ## Current UI audit
 
-Audited 2026-11-05 (ticket 01). Files: `agent_platform/web/index.html` (381 lines, one static page, vanilla JS, `marked` + `DOMPurify` from cdnjs), `server.py`, `db.py`.
+Audited 2026-11-05 (redesign ticket 01). Files: `agent_platform/web/index.html` (381 lines, one static page, vanilla JS, `marked` + `DOMPurify` from cdnjs), `server.py`, `db.py`.
 Guidelines: `.agents/skills/web-design-guidelines/SKILL.md` → vercel-labs/web-interface-guidelines `command.md` at commit `4ecfb9fb8d1d3b7009674869b3aaee2f904042e1` (2026-10-05).
 
-**Verdict:** keep the backend API and most of the client logic, **rebuild the layout**. The two-column split (chat | tables) can't turn into a full-screen table with a floating chat through CSS alone, but the code that formats data (id→name labels, arg formatting, approval card content, read folding, the diff) works with any stack and is worth porting rather than rewriting from scratch. Which stack is ticket 02's call.
+**Verdict:** keep the backend API and most of the client logic, **rebuild the layout**. The two-column split (chat | tables) can't turn into a full-screen table with a floating chat through CSS alone, but the code that formats data (id→name labels, arg formatting, approval card content, read folding, the diff) works with any stack and is worth porting rather than rewriting from scratch. Which stack is redesign ticket 02's call.
 
 ### Guideline findings
 
@@ -35,15 +37,15 @@ Line numbers refer to `agent_platform/web/index.html`.
 - `:331` - every cell is `String(v)`: amounts and dates show raw (`1234.5`, ISO timestamps). Use `Intl.NumberFormat` / `Intl.DateTimeFormat`.
 - `:107` - every cell is `nowrap` with no `max-width`/truncation, so a long name or address makes the table wider. Only `overflow: auto` on the pane catches it.
 - `:235,345` - tool names, ids and codes have no `translate="no"`, so browser auto-translation will mangle them.
-- `:123,136` - button labels use sentence case ("New chat", "Reset DB"). The guidelines want Title Case, but casing is a style choice: ticket 03 decides.
+- `:123,136` - button labels use sentence case ("New chat", "Reset DB"). The guidelines want Title Case, but casing is a style choice: redesign ticket 03 decides.
 
 **Performance & scale**
-- `:316-336` - every render rebuilds the whole table with no virtualisation. That's fine for today's seed (5-12 rows per table) but not at operator scale (feeds the large-table fog and ticket 04).
+- `:316-336` - every render rebuilds the whole table with no virtualisation. That's fine for today's seed (5-12 rows per table) but not at operator scale (feeds the large-table fog and redesign ticket 04).
 - `:7-8` - CDN scripts load in `<head>` with no `defer` or `preconnect`, so they block first paint.
 
 **Touch & layout**
 - No `touch-action: manipulation` or `-webkit-tap-highlight-color`. A floating chat will also need `overscroll-behavior: contain` and `env(safe-area-inset-*)`.
-- `:44-45` - below 900px the panes stack at `70vh` each and the body scrolls. Ticket 06 replaces this.
+- `:44-45` - below 900px the panes stack at `70vh` each and the body scrolls. Redesign ticket 06 replaces this.
 
 **Passes:** zoom isn't blocked (`:5`), reduced motion is honoured for the spinner (`:25`), the textarea has a label and a placeholder ending in `…` (`:131`), the runtime `<select>` sits inside a `<label>` and has explicit colours, the number column uses `tabular-nums` (`:98`), messages wrap (`:49`), error copy says what to do (`:165`), and markdown is sanitised with a plain-text fallback (`:156-160`).
 
@@ -57,26 +59,26 @@ Line numbers refer to `agent_platform/web/index.html`.
 | Claude-backup badge | `:122,373-375` | **Fix** | Useful cost/safety signal. Make its explanation reachable without hover. |
 | New chat | `:123,288-298` | **Fix** | Keep. Confirm (or allow undo) when the conversation has messages, like the runtime switch does. |
 | Reset DB | `:136,363-367` | **Fix** | Keep for the mock. Add confirmation and say it also clears the chat. |
-| Tools tab | `:339-350` | **Rebuild** | The content (tools per department, read/write badge, one-line description) is good reference material, but it isn't a table. Don't give it a tab next to the data. Placement is ticket 05's call. |
-| Example prompts | `:145-146,368` | **Fix** | Keep as the chat's empty state. Update the ids to the new seed (ticket 04). |
-| Approval card | `:199-212,249-256,272-276` | **Keep logic, rebuild look** | The safety core: blocked calls with named args, Approve/Reject, and the verdict stamped on the card. Keep all of it. The visual design is tickets 03/05. |
+| Tools tab | `:339-350` | **Rebuild** | The content (tools per department, read/write badge, one-line description) is good reference material, but it isn't a table. Don't give it a tab next to the data. Placement is redesign ticket 05's call. |
+| Example prompts | `:145-146,368` | **Fix** | Keep as the chat's empty state. Update the ids to the new seed (redesign ticket 04). |
+| Approval card | `:199-212,249-256,272-276` | **Keep logic, rebuild look** | The safety core: blocked calls with named args, Approve/Reject, and the verdict stamped on the card. Keep all of it. The visual design is redesign tickets 03/05. |
 | Trace box (tool calls) | `:228-243` | **Keep logic, rebuild look** | Keep reads folded into "N reads" and blocked calls hidden while the approval card shows them. Make it more compact inside the floating chat. |
 | Diff box | `:214-225` | **Fix** | Keep as a short summary in the chat reply. The tables become the main "what changed" view (destination), so this shrinks. |
 | Name labels on ids | `:167-175,329-331` | **Keep, fix** | Important for operators (`1001 · Laptop 14 inch`). Today it looks names up in the full client-side tables, which won't work if large tables are paged. The lookup has to move to the server or into a names index. |
 | Status pills | `:100-105,330` | **Keep, fix** | Map from known status values to tokens, not from raw CSS class names. |
-| Dark mode | `:17-24` | **Fix** | Keep. Add `color-scheme` and `theme-color`. Whether there's a manual toggle is ticket 03's call. |
+| Dark mode | `:17-24` | **Fix** | Keep. Add `color-scheme` and `theme-color`. Whether there's a manual toggle is redesign ticket 03's call. |
 | Change counts on tabs | `:311-312` | **Keep** | The same signal belongs wherever the table list ends up. |
 | Changed-row highlight + bold cell | `:108-109,320-332` | **Keep** | Fixed: matched by primary key, deleted rows struck through. |
-| Auto-jump to changed table | `:282` | **Revisit** | Handy, but it moves the operator without asking. Ticket 05 decides. |
+| Auto-jump to changed table | `:282` | **Revisit** | Handy, but it moves the operator without asking. Redesign ticket 05 decides. |
 | Busy indicator with seconds | `:85-89,261-268` | **Fix** | Keep the elapsed time. Stop the screen-reader spam. Refocusing the input on finish (`:267`) pops the keyboard on mobile. |
 | Markdown replies | `:156-161` | **Keep** | |
 | Offline / start errors | `:164-165,293` | **Keep** | |
-| Header subtitle "· sales / inventory / finance" | `:120` | **Drop** | Brand and name are ticket 03's. |
+| Header subtitle "· sales / inventory / finance" | `:120` | **Drop** | Brand and name are redesign ticket 03's. |
 | Non-mock mode (`nodb`, tools only) | `:376`, `server.py:111-119` | **Keep as degenerate state** | A real connection is out of scope, but the page must still render without `/api/db`. |
 
 ### Reusable as-is
 
-**CSS variables** (`:10-24`): a semantic set that already has light and dark values: `--bg --panel --text --muted --line --accent --accent-soft --ok --ok-soft --warn --warn-soft --bad --bad-soft --hl --on-accent --on-ok --mono`. These are good starting names for `tokens.css`. The values are ticket 03's.
+**CSS variables** (`:10-24`): a semantic set that already has light and dark values: `--bg --panel --text --muted --line --accent --accent-soft --ok --ok-soft --warn --warn-soft --bad --bad-soft --hl --on-accent --on-ok --mono`. These are good starting names for `tokens.css`. The values are redesign ticket 03's.
 
 **API** (`server.py`): everything the new UI needs per turn already exists.
 - `GET /api/info` → `{runtime, ready, escalation, mock, keys: {table: [pk columns]}, tools: {dept: [{name, write, description}]}}`
@@ -88,14 +90,14 @@ Line numbers refer to `agent_platform/web/index.html`.
 
 ### From `prototype/frontend-layout` (reference only)
 
-- **Stack it used:** Next.js 16 + React 19 + Tailwind v4 + shadcn (Base UI) + lucide + react-resizable-panels, with a 9k-line lockfile. That's a second toolchain next to a page Starlette serves as one file. This weighs on ticket 02.
+- **Stack it used:** Next.js 16 + React 19 + Tailwind v4 + shadcn (Base UI) + lucide + react-resizable-panels, with a 9k-line lockfile. That's a second toolchain next to a page Starlette serves as one file. This weighs on redesign ticket 02.
 - **Worth carrying into the design:** Variant B "Table editor" (a table list in a sidebar with change dots, row count, an "Only rows changed this turn" filter, PK markers, a `+`/`~` gutter column, dense 28px mono rows, sticky header) is closest to "Supabase Studio for operators". Also worth keeping: the compact mono status badge (`READ`/`BLOCKED`/`RAN`), the theme toggle, and the guarded `localStorage` wrapper.
-- **Not carrying:** the docked, resizable bottom chat (the destination says floating), the KPI tiles (nothing asks for them), and Variant C's timeline (it could come back as chat history, ticket 05's call).
-- **Housekeeping:** the untracked `web/` folder in this working tree only holds build leftovers from that branch (`node_modules`, `.next`, `tsconfig.tsbuildinfo`), no source. Delete it, or keep it ignored, once ticket 02 decides.
+- **Not carrying:** the docked, resizable bottom chat (the destination says floating), the KPI tiles (nothing asks for them), and Variant C's timeline (it could come back as chat history, redesign ticket 05's call).
+- **Housekeeping:** the untracked `web/` folder in this working tree only holds build leftovers from that branch (`node_modules`, `.next`, `tsconfig.tsbuildinfo`), no source. Delete it, or keep it ignored, once redesign ticket 02 decides.
 
 ## Stack
 
-Decided 2026-11-05 (ticket 02), with the user.
+Decided 2026-11-05 (redesign ticket 02), with the user.
 
 - **Framework:** Next.js (App Router) + React + TypeScript. Routing earns its place because more pages are planned (settings, history, later a real SoftOne login).
 - **Styling & components:** Tailwind CSS + shadcn/ui. Its accessible primitives (tabs, dialog, popover, tooltip) fix the audit's focus, tab-role and missing-confirmation findings. `tokens.css` feeds Tailwind's theme. Token names start from the audit's semantic set (see Current UI audit → Reusable as-is); values are the visual identity ticket's call.
@@ -108,7 +110,7 @@ Decided 2026-11-05 (ticket 02), with the user.
 
 ## Demo data
 
-Decided 2026-11-05 (ticket 04), with the user. The mock seed grows to operator scale so density, scrolling, search and the table of turn changes can be judged. Built by an implementation ticket, not on the way.
+Decided 2026-11-05 (redesign ticket 04), with the user. The mock seed grows to operator scale so density, scrolling, search and the table of turn changes can be judged. Built by an implementation ticket, not on the way.
 
 - **Extend, don't replace.** Today's rows stay exactly as they are: customers 47–51, items 1001–1005, orders 5001–5005, invoices and payments 1–5. Bulk rows come after them and never reference the original customers or items, so the originals' stock, totals and statuses never move. The README transcript and example prompts keep working. Lists sorted newest-first (`list_orders`: `ORDER BY id DESC`) now return bulk rows first, so a test looking for an original row by list position has to filter for it, e.g. by customer; one test changed this way (see `.scratch/frontend-build/issues/02-operator-scale-seed.md` → Answer).
 - **Sizes:** about 200 customers, 300 items, 1,000 orders, 3,000 order lines, 800 invoices, 1,000 payments. That's several screens per table, and `/api/db` still returns whole tables (see Large tables).
@@ -122,7 +124,7 @@ Decided 2026-11-05 (ticket 04), with the user. The mock seed grows to operator s
 
 ## Visual identity
 
-Decided 2026-11-05 (ticket 03), by the user, from three options on a rough sample (prototype on branch `prototype/visual-identity`, commit `f5886a2`). Values live in `web/app/tokens.css`; this section names the choices, the file holds the numbers.
+Decided 2026-11-05 (redesign ticket 03), by the user, from three options on a rough sample (prototype on branch `prototype/visual-identity`, commit `f5886a2`). Values live in `web/app/tokens.css`; this section names the choices, the file holds the numbers.
 
 - **Direction: "Ledger".** Warm stone neutrals with an ink-blue accent: calm, like an accounting ledger. Rejected: "Studio" (zinc + emerald, Inter) and "Console" (slate + indigo, mono tables at 24px rows).
 - **Theme:** **dark by default**, with a manual light/dark toggle (`<html data-theme="light">`). Set `color-scheme` and `<meta name="theme-color">` to match (audit finding).
@@ -134,7 +136,7 @@ Decided 2026-11-05 (ticket 03), by the user, from three options on a rough sampl
 
 ## Structure and flows
 
-Decided 2026-11-05 (ticket 05), by the user. The user compared three layouts on the operator-scale seed: **A** (sidebar + floating bar), B (tabs + docked console) and C (turn strip). They chose **A**, with the chat as clear glass. Prototype: branch `prototype/structure` (commit `8375107`), file `.scratch/frontend-redesign/prototype-structure.html` (`?variant=A&state=…&glass=clear`).
+Decided 2026-11-05 (redesign ticket 05), by the user. The user compared three layouts on the operator-scale seed: **A** (sidebar + floating bar), B (tabs + docked console) and C (turn strip). They chose **A**, with the chat as clear glass. Prototype: branch `prototype/structure` (commit `8375107`), file `.scratch/frontend-redesign/prototype-structure.html` (`?variant=A&state=…&glass=clear`).
 
 ### Page hierarchy
 
@@ -235,7 +237,7 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 
 ## Large tables
 
-Decided 2026-11-06 (ticket 11), with the user.
+Decided 2026-11-06 (redesign ticket 11), with the user.
 
 - **Whole tables in the browser.** `GET /api/db` keeps returning every table in full. Filtering, sorting and id→name labels all run in the client (TanStack Table + Virtual), over the loaded tables. The diff, the chip jump and the labels need no new API.
 - **API change:** add Starlette's built-in `GZipMiddleware` (about 1 MB of JSON → ~150 KB at the Demo data sizes, estimated). Nothing else.
@@ -246,7 +248,7 @@ Decided 2026-11-06 (ticket 11), with the user.
 
 ## Responsive
 
-Decided 2026-11-05 (ticket 06), by the user, using `.agents/skills/responsive-design/SKILL.md` and its `references/` (breakpoint-strategies, container-queries, fluid-layouts, details).
+Decided 2026-11-05 (redesign ticket 06), by the user, using `.agents/skills/responsive-design/SKILL.md` and its `references/` (breakpoint-strategies, container-queries, fluid-layouts, details).
 
 ### Priorities
 
@@ -309,7 +311,7 @@ Tailwind defaults only: no breakpoint tokens, no fluid type (the 11–16px scale
 
 ## Motion
 
-Decided 2026-11-06 (ticket 07), by the user, using the `emil-design-eng` skill. Operators repeat these actions all day, so the default is no motion. Values live in `web/app/tokens.css` (`--ease-*`, `--dur-*`, `--flash-*`, `--spin`).
+Decided 2026-11-06 (redesign ticket 07), by the user, using the `emil-design-eng` skill. Operators repeat these actions all day, so the default is no motion. Values live in `web/app/tokens.css` (`--ease-*`, `--dur-*`, `--flash-*`, `--spin`).
 
 ### Rules
 
@@ -344,7 +346,7 @@ Decided 2026-11-06 (ticket 07), by the user, using the `emil-design-eng` skill. 
 
 ## Keyboard
 
-Decided 2026-11-06 (ticket 12), with the user. Questions and mockups: artifact "Operator Keyboard Questions" (https://claude.ai/artifact/XEMh46LALRTfqXCnJ7CgGj).
+Decided 2026-11-06 (redesign ticket 12), with the user. Questions and mockups: artifact "Operator Keyboard Questions" (https://claude.ai/artifact/XEMh46LALRTfqXCnJ7CgGj).
 
 ### Keys
 
@@ -385,7 +387,7 @@ Decided 2026-11-06 (ticket 12), with the user. Questions and mockups: artifact "
 
 ## Accessibility
 
-Decided 2026-11-06 (ticket 13), with the user. Questions, measurements and the rendered glass options: artifact "Operator Accessibility Questions" (https://claude.ai/artifact/SKCbcfjd7jJpwvxKpmjRyJ). Keys and focus are in Keyboard; this section covers what's heard, contrast and contrast themes. The audit's fixes (busy line once, glyphs `aria-hidden`, no whole-log live region) still stand.
+Decided 2026-11-06 (redesign ticket 13), with the user. Questions, measurements and the rendered glass options: artifact "Operator Accessibility Questions" (https://claude.ai/artifact/SKCbcfjd7jJpwvxKpmjRyJ). Keys and focus are in Keyboard; this section covers what's heard, contrast and contrast themes. The audit's fixes (busy line once, glyphs `aria-hidden`, no whole-log live region) still stand.
 
 ### Announcements
 
@@ -434,13 +436,13 @@ Counts are words (added, changed, deleted), never the chip symbols.
 
 ## Testing
 
-Decided 2026-11-06 (ticket 09), with the user. The goal is one browser test that proves the workspace loop (ask, approval card, approve, change in the table) without an LLM.
+Decided 2026-11-06 (redesign ticket 09), with the user. The goal is one browser test that proves the workspace loop (ask, approval card, approve, change in the table) without an LLM.
 
 ### Tool and layout
 
 - **Playwright:** `@playwright/test` lives in `web/`, with its specs in `web/e2e/`. Its `webServer` config starts both servers and waits on their ports.
 - **Fake backend:** `tests/e2e_server.py` is a test-only entry point. It builds a throwaway mock DB and serves `create_app(open_chat=…)` with `FakeOrchestrator` on :8000. `FakeOrchestrator` moves from `tests/test_web.py` to `tests/fakes.py`, so the pytest and Playwright suites share it. `python -m agent_platform.web` gets no test flag.
-- **The fake stays as it is:** it blocks `create_order` until the user says "yes", then inserts order 5006. Nothing that needs a scriptable fake is covered, except one row-link check (ticket 08): a canned `/api/turn` reply (Playwright interception, as in flow 4) blocks `update_item` on the last of 305 items, to prove a far-down jump lands.
+- **The fake stays as it is:** it blocks `create_order` until the user says "yes", then inserts order 5006. Nothing that needs a scriptable fake is covered, except one row-link check (`frontend-build#08`): a canned `/api/turn` reply (Playwright interception, as in flow 4) blocks `update_item` on the last of 305 items, to prove a far-down jump lands.
 - **Which build:** in CI the test runs against `next build && next start`. Locally it runs against `next dev` and reuses one already running (`reuseExistingServer`). The fake API always starts fresh, so a real API on :8000 fails the run instead of sending the turns to Ollama. A reused `next dev` can keep serving an old `globals.css`: after editing it, check the served CSS has the change before debugging the rule, and restart the server if it doesn't.
 
 ### Flows covered
@@ -449,13 +451,14 @@ Decided 2026-11-06 (ticket 09), with the user. The goal is one browser test that
 2. **Reject:** ask, then Reject. "Nothing was written" shows and no row is highlighted.
 3. **Chip jump:** after an approve, switch to another table and click `Orders +1`. Orders is selected and the row is in view.
 4. **Backend down:** `/api/*` is failed with Playwright request interception. "Can't reach the API" and Retry show.
-5. **Keyboard approve** (ticket 13): `/`, type, Enter. Focus is on the approval card, not Approve. Enter on the card writes nothing (no 5006). Tab, Enter approves: 5006 is marked `+` and focus is in the composer. Esc, `]`: Orders is selected, focus is on the table, and 5006 is in view.
+5. **Keyboard approve** (redesign ticket 13): `/`, type, Enter. Focus is on the approval card, not Approve. Enter on the card writes nothing (no 5006). Tab, Enter approves: 5006 is marked `+` and focus is in the composer. Esc, `]`: Orders is selected, focus is on the table, and 5006 is in view.
+6. **Runtime menu smoke** (added after `frontend-build#09`, whose checkboxes needed proof): Cancel on each confirm (New chat, runtime switch, Reset) changes nothing. Switching to Claude starts an empty chat with no turn changes while the database keeps 5006. Reset removes 5006. The theme toggle flips `data-theme` and the `theme-color` meta. The fake orchestrator serves both runtimes, so nothing is billed.
 
-There are two projects. All five flows run on desktop (1440×900); flow 1 also runs at phone size (390×844), where the chat is a docked sheet.
+There are two projects. All six flows run on desktop (1440×900); flow 1 also runs at phone size (390×844), where the chat is a docked sheet.
 
-**axe** (`@axe-core/playwright`, ticket 13): scans inside the flows, at four states (empty workspace and approval card in flow 1, after approve in flow 1, backend down in flow 4), in dark and light, desktop only. WCAG 2.1 A + AA rules; serious or critical violations fail the run.
+**axe** (`@axe-core/playwright`, redesign ticket 13): scans inside the flows, at four states (empty workspace and approval card in flow 1, after approve in flow 1, backend down in flow 4), in dark and light, desktop only. WCAG 2.1 A + AA rules; serious or critical violations fail the run.
 
-Not covered, on purpose: New chat, the runtime switch, Reset, a read-only turn, and the failed-turn and Ollama-down errors. Each is thin UI over code that's already tested.
+Not covered, on purpose: a read-only turn, and the failed-turn and Ollama-down errors. Each is thin UI over code that's already tested.
 
 ### Unit check
 

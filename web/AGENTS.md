@@ -7,3 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## shadcn
+
+After `npx shadcn add`, check that the packages its new files import are in `package.json`. It can write the files and skip the install, and `tsc` stays green until the import is resolved.

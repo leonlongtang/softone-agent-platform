@@ -16,11 +16,11 @@ Implements: `DESIGN.md` → Keyboard (all); Testing → flow 5
   - `/` opens the chat and focuses the composer through a `ChatHandle` (React 19 `ref` prop).
   - `?` is Shift + the Slash key.
   - Ctrl/Cmd+F is left alone in the filter or the composer, so the browser's find opens.
-- **`]` / `[`:** `stepChange` in `lib/format.ts` (unit-checked) walks every changed row in chip order and key order, wrapping, and steps on from the last jump. It then calls the chat's `jump` with `step`, which folds the chat and announces "Change n of m". `jumpTarget` now counts the nth change within a table too. A key jump sets `data-flash="static"`; it looks the same as the pointer flash until ticket 13 adds the fade.
+- **`]` / `[`:** `stepChange` in `lib/format.ts` (unit-checked) walks every changed row in chip order and key order, wrapping, and steps on from the last jump. It then calls the chat's `jump` with `step`, which folds the chat and announces "Change n of m". `jumpTarget` now counts the nth change within a table too. A key jump sets `data-flash="static"`; it looks the same as the pointer flash until `frontend-build#13` adds the fade.
 - **Esc:** in the composer it folds the chat and focuses `#table`, and does nothing while a write waits. In the filter the first Esc clears, the second focuses the table.
 - **Table list:** ↑ ↓ Home End on the sidebar list, wrapping.
 - **Skip to chat:** a link that focuses `#chat` (`tabIndex=-1`), so it works even when the composer is locked.
 - **Tooltips:** `Tip` in `components/ui/tooltip.tsx` names the key on the composer (`/`), the change chips (`]`) and the filter (Ctrl/Cmd+F). Those elements also carry `aria-keyshortcuts`.
-- **Focus after a turn:** the rules from ticket 06 (card, then composer, nothing under `pointer: coarse`) were already in place and are unchanged.
+- **Focus after a turn:** the rules from `frontend-build#06` (card, then composer, nothing under `pointer: coarse`) were already in place and are unchanged.
 - **Flow 5:** added to `web/e2e/workspace.spec.ts`. It also covers the Greek-layout checkbox: `?`, `/`, `]` and Ctrl+F are sent as synthetic keydowns with a Greek `key` and the real `code`. For Ctrl/Cmd+F, the first press is claimed and the second is left to the browser (`defaultPrevented` false). A request counter proves the stray Enter sent no turn.
-- **Results:** 6 Playwright tests passed locally on `next dev`; unit tests, lint, `tsc` and `next build` are clean. CI not checked yet. The picker's arrow keys come with ticket 11.
+- **Results:** 6 Playwright tests passed locally on `next dev`; unit tests, lint, `tsc` and `next build` are clean. CI not checked yet. The picker's arrow keys come with `frontend-build#11`.
