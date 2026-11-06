@@ -40,10 +40,11 @@ Settled while charting (2026-11-05):
 - [11: Large-table behaviour: paging, filter, names](issues/11-large-table-behaviour.md): no server paging; whole tables (gzipped) filtered, sorted and labelled in the browser; accent-insensitive filter on displayed text; single-column sort reset by chip jumps. See `DESIGN.md` → Large tables.
 - [12: Keyboard shortcuts for operators](issues/12-keyboard-shortcuts.md): punctuation keys by physical key (`/` composer, `Esc` fold, `]`/`[` next change, `?` help) plus Ctrl/Cmd+F to the filter; no Approve/Reject shortcut; one-stop table in a skip link → sidebar → filter → table → chat order. See `DESIGN.md` → Keyboard.
 - [13: Accessibility baseline: announcements, glass contrast, automated checks](issues/13-accessibility-baseline.md): one sentence per turn end and jump on the status line; row counts and change words for readers, `lang="el"` on Greek; clear glass failed AA under text, so text blocks go solid and the glass stays on the frame; axe in the flows plus a keyboard approve flow. See `DESIGN.md` → Accessibility.
+- [08: Write the implementation tickets](issues/08-implementation-tickets.md): 13 `ready-for-agent` tickets in `.scratch/frontend-build/` (spec + issues), scaffold → data/logic → table → chat → changes and jumps → menu, keyboard, responsive, accessibility → motion; each cites its `DESIGN.md` sections. The map is complete.
 
 ## Not yet specified
 
-<!-- empty: the way to the destination is clear; only the implementation-tickets task remains -->
+<!-- empty: the destination is reached -->
 
 ## Out of scope
 
