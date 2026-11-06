@@ -1,18 +1,35 @@
 // Flows 1 to 6 from DESIGN.md → Testing → Flows covered. The fake blocks create_order until "yes",
 // then inserts order 5006.
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
 test.beforeEach(async ({ request }) => {
   await request.post("/api/reset"); // reseed and drop the chat, so 5006 can be created again
 });
 
-async function askForWrite(page: Page) {
+/**
+ * axe at one state, in dark then light (DESIGN.md → Testing → Flows covered): WCAG 2.1 A + AA, serious or critical
+ * fails. Desktop only: the scanned flows don't run in the phone project. The theme goes back to what it was.
+ */
+async function axe(page: Page, state: string) {
+  const was = await page.evaluate(() => document.documentElement.dataset.theme);
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
+    const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    const bad = violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+    expect(bad.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`), `${state}, ${theme}`).toEqual([]);
+  }
+  await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, was);
+}
+
+async function askForWrite(page: Page, scan = false) {
   await page.goto("/");
   await expect(page.getByRole("region", { name: /^Orders table/ })).toBeVisible();
   // Rows must be --row tall: the virtualizer's ROW assumes it, and rem sizes (h-8) come out 28px here.
   const heights = await page.locator("tbody tr[aria-rowindex]").first().evaluate((tr) =>
     [tr.getBoundingClientRect().height, parseFloat(getComputedStyle(tr).getPropertyValue("--row"))]);
   expect(heights[0]).toBe(heights[1]);
+  if (scan) await axe(page, "empty workspace");
   const composer = page.getByRole("textbox", { name: "Ask the agent" });
   await composer.fill("Create an order for customer 47");
   await composer.press("Enter");
@@ -23,15 +40,17 @@ async function askForWrite(page: Page) {
 const order5006 = (page: Page) => page.getByRole("row").filter({ has: page.getByRole("cell", { name: "5006", exact: true }) });
 
 test("approve: 5006 is marked added, the chat folds, the chip reads Orders +1", async ({ page }) => {
-  await askForWrite(page);
+  await askForWrite(page, true);
+  await axe(page, "approval card");
   await page.getByRole("button", { name: "Approve" }).click();
 
-  await expect(page.getByRole("status")).toHaveText(/^Written\. Orders: 1 added\./);
+  await expect(page.getByRole("status")).toHaveText("Written. Orders: 1 added. Press ] to go to the changes.");
   await expect(order5006(page)).toHaveAttribute("data-change", "insert");
   await expect(order5006(page).getByRole("cell").first()).toHaveText("+added");
   await expect(page.getByRole("button", { name: "Chat (1)" })).toBeVisible(); // folded
   await expect(page.getByRole("list", { name: "Changes this turn" })).toHaveText("Orders +1");
   await expect(page.getByRole("navigation", { name: "Tables" }).getByRole("button", { name: /^Orders/ })).toContainText("1 changed");
+  await axe(page, "after approve");
 });
 
 // Flow 1 at phone size (DESIGN.md → Responsive → Phone): the chat is a sheet below the top bar while it's open,
@@ -142,8 +161,10 @@ test("no sideways scroll at the check sizes", async ({ page }) => {
 test("backend down: Can't reach the API, with Retry", async ({ page }) => {
   await page.route("**/api/**", (route) => route.abort());
   await page.goto("/");
-  await expect(page.getByText("Can't reach the API")).toBeVisible();
+  await expect(page.getByText("Can't reach the API", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveText("Can't reach the API.");
+  await axe(page, "backend down");
 });
 
 /** A keydown by physical key with a non-US `key`, as a Greek layout sends it; true if the page claimed it. */

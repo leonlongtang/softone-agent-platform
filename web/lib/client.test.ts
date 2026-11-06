@@ -140,7 +140,7 @@ test("the status line's sentence after a turn (DESIGN.md → Accessibility → A
   assert.equal(turnSentence("reject", ok), "Rejected. Nothing was written.");
   assert.equal(
     turnSentence("approve", { ...ok, diff: [ins("orders", 5006), upd("items", 1), upd("items", 2)] }),
-    "Written. Orders: 1 added. Items: 2 changed.",
+    "Written. Orders: 1 added. Items: 2 changed. Press ] to go to the changes.",
   );
   assert.equal(turnSentence("ask", { ...ok, response: "", error: "Boom" }), "The turn failed. Nothing was written.");
   assert.equal(turnSentence("ask", { ...ok, response: "", error: "Boom", diff: [ins("orders", 5006)] }),

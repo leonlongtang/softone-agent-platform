@@ -12,7 +12,7 @@ import { Tip } from "@/components/ui/tooltip";
 import { SearchIcon } from "lucide-react";
 import { type Row, type TableChanges, tableRows, turnChanges } from "@/lib/changes";
 import {
-  applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, stepChange, type TraceCall, type TurnResponse,
+  API_DOWN, applyView, DEFAULT_VIEW, jumpTarget, labelFor, nameIndex, nextSort, rowLinks, stepChange, type TraceCall, type TurnResponse,
   type View,
 } from "@/lib/format";
 
@@ -56,7 +56,7 @@ async function load(): Promise<State> {
 
 /** A table's "N changed" badge; the sr-only commas keep it one phrase in a button's name. */
 const ChangedBadge = ({ n }: { n: number }) => (
-  <span className="ml-auto rounded-sm bg-warn-soft px-1 text-xs text-warn tabular-nums">
+  <span className="ml-auto rounded-sm bg-warn-soft px-1 text-xs text-warn tabular-nums forced-colors:border forced-colors:border-current">
     <span className="sr-only">, </span>{n}<span className="sr-only"> changed,</span>
   </span>
 );
@@ -168,6 +168,11 @@ export function Workspace() {
 
   // The runtime menu and its dialogs (DESIGN.md → Flows 3–5). New chat and Reset remount the chat, with a note.
   const chatRef = useRef<ChatHandle>(null);
+  // Said once (DESIGN.md → Accessibility → Announcements): a Retry that fails again sets the same sentence, which
+  // React drops, so the line doesn't change and isn't read again.
+  useEffect(() => {
+    if (state.status === "down") chatRef.current?.say(API_DOWN);
+  }, [state.status]);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [chat, setChat] = useState({ key: 0, notice: "" });
   const clearTurn = (notice: string) => {
@@ -279,7 +284,7 @@ export function Workspace() {
                   type="button"
                   aria-current={t === table ? "true" : undefined}
                   onClick={() => pick(t)}
-                  className="flex h-8 w-full items-center rounded-sm px-2 text-left hover:bg-raised aria-[current]:bg-accent-soft aria-[current]:text-accent-text focus-visible:outline-2 focus-visible:outline-ring"
+                  className="flex h-8 w-full items-center rounded-sm px-2 text-left hover:bg-raised aria-[current]:bg-accent-soft aria-[current]:text-accent-text forced-colors:aria-[current]:forced-color-adjust-none forced-colors:aria-[current]:bg-[Highlight] forced-colors:aria-[current]:text-[HighlightText] forced-colors:aria-[current]:*:bg-transparent forced-colors:aria-[current]:*:text-[HighlightText] forced-colors:aria-[current]:focus-visible:outline-[CanvasText] focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   {labelFor(t)}
                   {changedIn(t) > 0 && <ChangedBadge n={changedIn(t)} />}
@@ -314,7 +319,7 @@ export function Workspace() {
               {count(table)} rows
             </span>
             {changedIn(table) > 0 && (
-              <span className="shrink-0 rounded-sm bg-warn-soft px-1.5 text-sm whitespace-nowrap text-warn">
+              <span className="shrink-0 rounded-sm bg-warn-soft px-1.5 text-sm whitespace-nowrap text-warn forced-colors:border">
                 {changedIn(table)} changed<span className="hidden sm:inline"> this turn</span>
               </span>
             )}

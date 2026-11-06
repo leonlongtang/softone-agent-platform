@@ -167,7 +167,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
                 {row.getAllCells().map((cell, i) => {
                   const k = cell.column.id, value = cell.getValue(), text = cellText(k, value, nameOf);
                   const p = columns[i].meta.pinned;
-                  const bg = change?.op === "update" && change.changed.includes(k) ? "bg-warn-soft text-warn" : tint || (p === undefined ? "" : "bg-panel");
+                  const bg = change?.op === "update" && change.changed.includes(k) ? "bg-warn-soft text-warn forced-colors:outline-1 forced-colors:-outline-offset-1" : tint || (p === undefined ? "" : "bg-panel");
                   return (
                     <td
                       key={cell.id}

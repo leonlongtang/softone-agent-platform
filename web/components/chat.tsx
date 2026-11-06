@@ -57,6 +57,7 @@ export interface ChatHandle {
   jump: Jump; // folds and announces, like a chip
   compose: () => void; // `/`: open and focus the composer, draft kept
   turns: number;
+  say: (sentence: string) => void; // the status line, for news from outside the chat
 }
 
 /** One chip per changed table; a click jumps to that table's first change. Older turns' chips are plain text. */
@@ -175,7 +176,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
     }
     return sentence;
   };
-  useImperativeHandle(ref, () => ({ jump, compose: () => { setOpen(true); inputRef.current?.focus(); }, turns }));
+  useImperativeHandle(ref, () => ({ jump, compose: () => { setOpen(true); inputRef.current?.focus(); }, turns, say: setStatus }));
 
   async function send(kind: TurnKind, text: string, replace?: number) {
     if (busy || !text.trim()) return;
@@ -342,7 +343,7 @@ function Turn({ entry: e, next, isLast, live, busy, nameOf, runtime, cardRef, on
               tabIndex={-1}
               role="group"
               aria-labelledby={`card-${e.id}`}
-              className="flex flex-col gap-2 rounded-md border border-warn bg-warn-soft px-3 py-2 focus-visible:outline-2 focus-visible:outline-ring"
+              className="flex flex-col gap-2 rounded-md border border-warn bg-warn-soft px-3 py-2 forced-colors:border-2 focus-visible:outline-2 focus-visible:outline-ring"
             >
               <p id={`card-${e.id}`} className="flex items-center gap-2 font-semibold">
                 <span aria-hidden><Badge status="blocked" /></span> Pending write: needs your approval

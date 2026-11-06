@@ -204,8 +204,11 @@ export const changeNote = (c: RowChange) =>
  * What the status line says when a turn ends (DESIGN.md → Accessibility → Announcements); "" on a pending write,
  * where focus moves to the approval card instead. `null` is a request that never got an answer.
  */
+/** The status line when the API doesn't answer, a turn or the page load. */
+export const API_DOWN = "Can't reach the API.";
+
 export function turnSentence(kind: TurnKind, r: TurnResponse | null): string {
-  if (!r) return "Can't reach the API.";
+  if (!r) return API_DOWN;
   const written = Object.entries(turnChanges(r.diff)).map(([t, { counts }]) => {
     const parts = (["insert", "update", "delete"] as const).filter((op) => counts[op]).map((op) => `${counts[op]} ${WORDS[op]}`);
     return `${labelFor(t)}: ${parts.join(", ")}.`;
@@ -213,7 +216,7 @@ export function turnSentence(kind: TurnKind, r: TurnResponse | null): string {
   const outcome = written.length ? `Written. ${written.join(" ")}` : "Nothing was written.";
   if (isFailedTurn(r)) return `The turn failed. ${outcome}`;
   if (r.pending) return "";
-  if (written.length) return outcome;
+  if (written.length) return `${outcome} Press ] to go to the changes.`;
   return kind === "reject" ? "Rejected. Nothing was written." : "Answer ready.";
 }
 

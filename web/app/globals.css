@@ -107,6 +107,11 @@
   .chat[data-open] { background: var(--raised); backdrop-filter: none; }
   .chat-log { max-height: none; flex: 1; min-height: 0; }
 }
+/* Contrast themes (DESIGN.md → Accessibility → Contrast themes): solid Canvas with a CanvasText border, after the phone
+   sheet's rule so it wins there too. The rest of that list sits on the elements as forced-colors: utilities. */
+@media (forced-colors: active) {
+  .chat, .chat[data-open] { background: Canvas; backdrop-filter: none; border: 1px solid CanvasText; }
+}
 
 /* The agent's answer, rendered from markdown. */
 .md > * + * { margin-top: var(--space-2); }
