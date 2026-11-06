@@ -1,14 +1,19 @@
 "use client";
 
 import DOMPurify from "dompurify";
+import { PaperclipIcon } from "lucide-react";
 import { marked } from "marked";
 import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Tip } from "@/components/ui/tooltip";
 import type { TableChanges } from "@/lib/changes";
-import { ClientError, decide, failedTurn, turn } from "@/lib/client";
 import {
-  changeChips, type Decision, foldReads, formatArgs, isFailedTurn, isGreek, labelFor, type NameOf, pendingArgs, type RowLink,
-  TRACE_BADGE, type TraceCall, type Turn, turnError, type TurnKind, turnSentence,
+  attachOrderFile, ClientError, decide, discardOrderFile, failedTurn, fixOrderFile, type OrderCard, type OrderFix, orderFile,
+  type OrderRow, proposeOrderFile, turn,
+} from "@/lib/client";
+import {
+  API_DOWN, changeChips, type ColumnPick, type Decision, foldReads, formatArgs, formatMoney, isFailedTurn, isGreek, labelFor,
+  type NameOf, orderLines, orderSentence, pendingArgs, pickedColumns, type RowLink, statusToken, TRACE_BADGE, type TraceCall,
+  type Turn, turnError, type TurnKind, turnSentence,
 } from "@/lib/format";
 
 // Example prompts use the original seed rows, which the operator-scale seed keeps (DESIGN.md → Demo data).
@@ -21,20 +26,32 @@ const EXAMPLES = [
 
 interface Entry {
   id: number;
-  kind: TurnKind;
+  kind: TurnKind | "file"; // "file": an order file's card, `text` its name
   text: string;
   state: "busy" | "done" | "failed";
   res?: Turn | null; // null: the request never got an answer
+  card?: OrderCard | null; // a file entry's card; null once discarded
+  error?: string; // a file entry's refused upload or fix
 }
 
 const TONE = { ok: "text-ok border-ok", warn: "text-warn border-warn", bad: "text-bad border-bad", muted: "text-muted-foreground border-line" };
+const Pill = ({ text, token }: { text: string; token: keyof typeof TONE }) => (
+  <span className={`rounded-sm border px-1 font-mono text-xs whitespace-nowrap ${TONE[token]}`}>{text}</span>
+);
 const Badge = ({ status }: { status: TraceCall["status"] }) => {
   const b = TRACE_BADGE[status] ?? { text: status.toUpperCase(), token: "muted" as const };
-  return <span className={`rounded-sm border px-1 font-mono text-xs ${TONE[b.token]}`}>{b.text}</span>;
+  return <Pill text={b.text} token={b.token} />;
 };
 const lang = (s: string) => (isGreek(s) ? "el" : undefined);
 const isCoarse = () => matchMedia("(pointer: coarse)").matches;
 const block = "rounded-md bg-raised px-3 py-2"; // every text block is solid: text never sits on the glass
+const ring = "focus-visible:outline-2 focus-visible:outline-ring";
+const primary = `press h-8 rounded-sm border border-transparent bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-offset-2 disabled:opacity-50 ${ring}`;
+const danger = `press h-8 rounded-sm border border-bad px-3 font-medium text-bad enabled:hover:bg-bad-soft focus-visible:outline-offset-2 disabled:opacity-50 ${ring}`;
+const plain = `press h-8 rounded-sm border border-line bg-bg px-2.5 text-sm enabled:hover:border-primary disabled:opacity-50 ${ring}`;
+const field = `h-8 min-w-0 rounded-sm border border-line bg-bg px-2 ${ring}`;
+const euro = (n: number) => `€${formatMoney(n)}`;
+const errorText = (e: unknown) => (e instanceof ClientError ? (e.body.error ?? e.message) : API_DOWN);
 
 /** Text for anything typed, a Decision for the Approve and Reject buttons. A refused turn shows the server's error;
  * `null` is a request that never got an answer. */
@@ -150,6 +167,8 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const focusNext = useRef<"card" | "composer" | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [orderId, setOrderId] = useState<number | null>(null); // the open order file's entry: composer locked
   // New chat or Reset remounts the chat mid-turn: the old turn's reply must not bring back cleared changes.
   const alive = useRef(false);
   useEffect(() => {
@@ -157,12 +176,28 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
     return () => { alive.current = false; };
   }, []);
 
-  const last = entries.at(-1);
+  const last = entries.findLast((e) => e.kind !== "file"); // a refused upload after a pending write doesn't unlock it
   // A pending write: chat forced open, composer locked. The server reports `pending` on a failed turn too, and a
   // reply that never got an answer may have left the write waiting, so only a decided turn unlocks.
   const waiting = !!last?.res?.pending || (last?.state === "failed" && last.kind !== "ask" && !last.res);
+  const locked = waiting || orderId !== null; // an order file is open or proposed (.scratch/order-file/spec.md → Decisions → 14)
+  const proposed = !!entries.find((e) => e.id === orderId)?.card?.proposed;
+  const canAttach = !disabled && !waiting && !proposed; // a second file replaces an open one, never a pending write
+  const keyAttach = useRef(false); // the paperclip was pressed from the keyboard
   const turns = entries.filter((e) => e.kind === "ask").length;
   const liveId = entries.findLast((e) => e.res)?.id; // its diff is the workspace's turn changes
+
+  // An order file outlives a page reload: the server keeps it until it's discarded, approved or rejected.
+  useEffect(() => {
+    let on = true;
+    orderFile().then((card) => {
+      if (!on || !card) return;
+      const id = nextId.current++;
+      setEntries((all) => [...all, { id, kind: "file", text: card.name, state: "done", card }]);
+      setOrderId(id);
+    }, () => {}); // the API down: the workspace already says so
+    return () => { on = false; };
+  }, []);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -200,6 +235,72 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
       focusNext.current = "card";
     } else if (kind !== "ask" && !isFailedTurn(res)) focusNext.current = "composer";
     setEntries((all) => all.map((e) => (e.id === id ? { ...e, state: isFailedTurn(res) ? "failed" : "done", res } : e)));
+    if (kind !== "ask" && orderId !== null) {
+      // Approve or Reject of a proposed order file. Gone means done; still there means SoftOne refused the write
+      // (e.g. stock moved), and it's back unproposed with the fixes kept, as a fresh card under the error.
+      const card = await orderFile().catch(() => null);
+      if (!alive.current) return;
+      if (card) showCard(card, null);
+      else setOrderId(null);
+    }
+  }
+
+  /** Show an order file's card as the newest entry, in place of `replace` (the card it replaces). */
+  function showCard(card: OrderCard, replace: number | null, byKey = false) {
+    const id = nextId.current++;
+    setEntries((all) => [...all.filter((e) => e.id !== replace), { id, kind: "file", text: card.name, state: "done", card }]);
+    setOrderId(id);
+    setOpen(true, byKey);
+    focusNext.current = "card";
+  }
+
+  /**
+   * Drop or paperclip (`byKey`: the paperclip from the keyboard, so no motion). A refused file shows its message in
+   * the feed; an open order file stays open. Not while a write waits: a proposed order file is decided first.
+   */
+  async function upload(file: File, byKey = false) {
+    if (busy) return;
+    if (!canAttach) return setStatus("Approve or reject the pending write first."); // e.g. a drop
+    setBusy(true);
+    setStatus(`Reading ${file.name}…`);
+    try {
+      const card = await attachOrderFile(file);
+      if (!alive.current) return;
+      showCard(card, orderId, byKey);
+      setStatus(orderSentence(card));
+    } catch (err) {
+      if (!alive.current) return;
+      const id = nextId.current++;
+      setEntries((all) => [...all, { id, kind: "file", text: file.name, state: "failed", error: errorText(err) }]);
+      setOpen(true, byKey);
+      setStatus(`${file.name} wasn't read.`);
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  }
+
+  /** A fix, Propose or Discard on the open order file's card; the server answers with the new card (null: discarded). */
+  async function change(op: () => Promise<OrderCard | null>) {
+    if (busy || orderId === null) return;
+    const id = orderId;
+    setBusy(true);
+    setStatus("Matching…");
+    try {
+      const card = await op();
+      if (!alive.current) return;
+      setEntries((all) => all.map((e) => (e.id === id ? { ...e, card, error: undefined } : e)));
+      // Proposed: nothing here, focus moves to the card, which announces "Pending write: needs your approval".
+      setStatus(!card ? "Order file discarded." : card.proposed ? "" : orderSentence(card));
+      if (!card) setOrderId(null);
+      focusNext.current = card ? "card" : "composer"; // the fixed row's controls may be gone: land on the card
+    } catch (err) {
+      if (!alive.current) return;
+      const error = errorText(err);
+      setEntries((all) => all.map((e) => (e.id === id ? { ...e, error } : e)));
+      setStatus(error);
+    } finally {
+      if (alive.current) setBusy(false);
+    }
   }
 
   return (
@@ -209,6 +310,14 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
       aria-label="Chat"
       data-open={open || undefined}
       data-instant={instant || undefined}
+      onDragOver={(ev) => { if (ev.dataTransfer.types.includes("Files")) ev.preventDefault(); }}
+      onDrop={(ev) => {
+        const file = ev.dataTransfer.files[0];
+        if (!file) return;
+        ev.preventDefault(); // not the browser opening the file
+        setOpen(true);
+        upload(file);
+      }}
       // Phone first (DESIGN.md → Responsive → Phone): a bar docked to the bottom edge, or open, a sheet over everything
       // below the top bar that shrinks with the on-screen keyboard. From 640 it floats (DESIGN.md → Structure and flows → Floating chat).
       // z-40: over the table's pinned cells (z-30), under menus and dialogs (z-50).
@@ -236,11 +345,26 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
             </div>
           </div>
         )}
-        {entries.map((e, i) => (
+        {entries.map((e, i) => {
+          const next = entries.slice(i + 1).find((x) => x.kind !== "file"); // its Approve or Reject, if any
+          return e.kind === "file" ? (
+            <OrderFileCard
+              key={e.id}
+              entry={e}
+              next={next}
+              live={e.id === orderId}
+              busy={busy}
+              cardRef={cardRef}
+              onFix={(fix) => change(() => fixOrderFile(fix))}
+              onPropose={() => change(proposeOrderFile)}
+              onDiscard={() => change(discardOrderFile)}
+              onDecide={(k) => send(k, k)}
+            />
+          ) : (
           <Turn
             key={e.id}
             entry={e}
-            next={entries[i + 1]}
+            next={next}
             isLast={i === entries.length - 1}
             live={e.id === liveId}
             busy={busy}
@@ -250,9 +374,10 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
             onJump={jump}
             rowLinks={rowLinks}
             onDecide={(k) => send(k, k)}
-            onRetry={() => send(e.kind, e.text, e.id)}
+            onRetry={() => e.kind !== "file" && send(e.kind, e.text, e.id)}
           />
-        ))}
+          );
+        })}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <p role="status" className={status ? `${block} flex-1 py-1 text-sm text-muted-foreground` : "sr-only"}>
@@ -279,6 +404,30 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
         >
           {open ? "Hide chat" : `Chat (${turns})`}
         </button>
+        <input
+          ref={fileRef}
+          type="file"
+          hidden
+          accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          onChange={(ev) => {
+            const file = ev.target.files?.[0];
+            ev.target.value = ""; // the same file again is a new upload
+            if (file) upload(file, keyAttach.current);
+          }}
+        />
+        <button
+          type="button"
+          aria-label="Attach an order file"
+          title="Attach an order file (CSV or .xlsx), or drop it on the chat"
+          disabled={!canAttach || busy}
+          onClick={(ev) => {
+            keyAttach.current = ev.detail === 0; // Enter or Space (DESIGN.md → Motion → Rules)
+            fileRef.current?.click();
+          }}
+          className={`press grid size-8 shrink-0 place-items-center rounded-sm bg-raised text-muted-foreground hover:text-foreground disabled:opacity-50 ${ring}`}
+        >
+          <PaperclipIcon aria-hidden className="size-4" />
+        </button>
         <Tip label="Ask the agent" keys="/">
           <textarea
             ref={inputRef}
@@ -286,8 +435,8 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
             aria-label="Ask the agent"
             aria-keyshortcuts="/"
             value={draft}
-            disabled={disabled || waiting}
-            placeholder={waiting ? "Approve or reject the pending write first…" : "Ask the agent"}
+            disabled={disabled || locked}
+            placeholder={orderId !== null ? "Finish or discard the order file first" : waiting ? "Approve or reject the pending write first…" : "Ask the agent"}
             onChange={(ev) => setDraft(ev.target.value)}
             onKeyDown={(ev) => {
               if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) {
@@ -303,8 +452,8 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
         </Tip>
         <button
           type="submit"
-          disabled={disabled || waiting || busy || !draft.trim()}
-          className="press h-8 shrink-0 rounded-sm border border-transparent bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+          disabled={disabled || locked || busy || !draft.trim()}
+          className={`${primary} shrink-0`}
         >
           Send
         </button>
@@ -387,7 +536,9 @@ function Turn({ entry: e, next, isLast, live, busy, nameOf, runtime, cardRef, on
   );
 }
 
-function Verdict({ next, busy, onDecide }: { next?: Entry; busy: boolean; onDecide: (k: Decision) => void }) {
+function Verdict({ next, busy, onDecide, approve = true }: {
+  next?: Entry; busy: boolean; onDecide: (k: Decision) => void; approve?: boolean;
+}) {
   if (next?.kind === "approve" && next.state === "busy" && busy) {
     return <p className="text-sm text-warn">Writing…<Seconds /></p>;
   }
@@ -397,20 +548,282 @@ function Verdict({ next, busy, onDecide }: { next?: Entry; busy: boolean; onDeci
   if (next) return null; // a failed or in-flight reply: its own line has Retry
   return (
     <div className="flex gap-2 *:flex-1 @min-[420px]:*:flex-none">{/* full width under 420px of log */}
-      <button
-        type="button"
-        onClick={() => onDecide("approve")}
-        className="press h-8 rounded-sm border border-transparent bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        Approve
-      </button>
-      <button
-        type="button"
-        onClick={() => onDecide("reject")}
-        className="press h-8 rounded-sm border border-bad px-3 font-medium text-bad hover:bg-bad-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
+      {approve && (
+        <button type="button" onClick={() => onDecide("approve")} className={primary}>
+          Approve
+        </button>
+      )}
+      <button type="button" onClick={() => onDecide("reject")} className={danger}>
         Reject
       </button>
+    </div>
+  );
+}
+
+/** A one-field form: Enter or its button sends the trimmed value. Labelled for readers, since several sit side by side. */
+function FieldForm({ label, button, value, number, onSubmit }: {
+  label: string; button: string; value: string | number; number?: boolean; onSubmit: (v: string) => void;
+}) {
+  return (
+    <form
+      className="flex min-w-0 gap-1"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        const v = String(new FormData(ev.currentTarget).get("v") ?? "").trim();
+        if (v) onSubmit(v);
+      }}
+    >
+      <input
+        name="v"
+        aria-label={label}
+        defaultValue={value}
+        lang={lang(String(value))}
+        {...(number ? { type: "number", min: 1, step: 1, inputMode: "numeric" as const } : { type: "text" })}
+        className={`${field} ${number ? "w-20" : "w-48 flex-1"}`}
+      />
+      <button type="submit" aria-label={`${button}: ${label}`} className={plain}>{button}</button>
+    </form>
+  );
+}
+
+const CANDIDATES = 6; // a search hit list can run to the server's cap; past this the search box narrows it
+const ROW_PILL: Record<OrderRow["state"], [string, keyof typeof TONE]> = {
+  ok: ["OK", "ok"], ambiguous: ["PICK", "warn"], no_item: ["NO ITEM", "bad"], short: ["SHORT", "warn"], skipped: ["SKIPPED", "muted"],
+};
+
+/** One sheet row; an open row gets its fixes: a candidate or an item search, the quantity, Skip (.scratch/order-file/spec.md → Decisions → 8). */
+function OrderRowView({ r, onFix }: { r: OrderRow; onFix: (fix: OrderFix) => void }) {
+  const [text, token] = r.state === "ok" && r.qty === null ? (["QTY", "bad"] as const) : ROW_PILL[r.state];
+  const row = `row ${r.number}`;
+  return (
+    <li className="flex flex-col gap-1 border-t border-line py-1.5 first:border-t-0">
+      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
+        <span className="font-mono text-muted-foreground tabular-nums">Row {r.number}</span>
+        <Pill text={text} token={token} />
+        <span lang={lang(r.text)} className="break-words">{r.text}</span>
+        <span className="tabular-nums">× {r.qty ?? "?"}</span>
+        {r.item && (
+          <span className="text-muted-foreground" lang={lang(r.item.name)}>
+            → <span className="font-mono" translate="no">{r.item.code}</span> {r.item.name} · {euro(r.item.price)}
+          </span>
+        )}
+        {r.price_differs && r.file_price !== null && <span className="text-warn">file {euro(r.file_price)}</span>}
+        {r.state === "short" && <span className="text-warn">{r.available} available</span>}
+        {r.error && <span className="text-bad">{r.error}</span>}
+      </p>
+      {r.open && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {r.candidates.slice(0, CANDIDATES).map((c) => (
+            <button key={c.id} type="button" onClick={() => onFix({ row: r.number, item: c.id })} className={plain} lang={lang(c.name)}>
+              Use <span className="font-mono" translate="no">{c.code}</span> {c.name} · {euro(c.price)}
+              <span className="sr-only"> for {row}</span>{/* the same candidate can sit on several rows */}
+            </button>
+          ))}
+          {r.candidates.length > CANDIDATES && (
+            <span className="text-sm text-muted-foreground">{r.candidates.length - CANDIDATES} more: search for a closer name.</span>
+          )}
+          {(r.state === "ambiguous" || r.state === "no_item") && (
+            <FieldForm label={`Item for ${row}`} button="Search" value={r.text} onSubmit={(q) => onFix({ row: r.number, item: q })} />
+          )}
+          <FieldForm number label={`Quantity for ${row}`} button="Set" value={r.qty ?? ""} onSubmit={(q) => onFix({ row: r.number, qty: Number(q) })} />
+          <button type="button" aria-label={`Skip ${row}`} onClick={() => onFix({ row: r.number, skip: true })} className={plain}>Skip</button>
+        </div>
+      )}
+      {r.state === "skipped" && (
+        <button type="button" aria-label={`Unskip ${row}`} onClick={() => onFix({ row: r.number, skip: false })} className={`${plain} self-start`}>
+          Unskip
+        </button>
+      )}
+    </li>
+  );
+}
+
+const COLUMN_LABEL: Record<ColumnPick, string> = { item: "Item", qty: "Qty", price: "Price", ignore: "Ignore" };
+
+/** No item or quantity header: the first rows, a picker above each column (.scratch/order-file/spec.md → Decisions → 6). */
+function ColumnPicker({ card, onFix }: { card: OrderCard; onFix: (fix: OrderFix) => void }) {
+  const width = Math.max(0, ...card.preview.map((r) => r.length));
+  const found = (i: number) => (Object.entries(card.columns).find(([, c]) => c === i)?.[0] ?? "ignore") as ColumnPick;
+  const [picks, setPicks] = useState(() => Array.from({ length: width }, (_, i) => found(i)));
+  const columns = pickedColumns(picks);
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <p>No item or quantity header found. Pick what each column holds.</p>
+      <div className="overflow-x-auto">{/* scrolls inside the card, never the page (DESIGN.md → Responsive → Check sizes) */}
+        <table className="text-sm">
+          <thead>
+            <tr>
+              {picks.map((p, i) => (
+                <th key={i} className="p-1 text-left font-normal">
+                  <select
+                    aria-label={`Column ${i + 1}`}
+                    value={p}
+                    onChange={(ev) => setPicks((all) => all.map((x, j) => (j === i ? (ev.target.value as ColumnPick) : x)))}
+                    className={field}
+                  >
+                    {(Object.keys(COLUMN_LABEL) as ColumnPick[]).map((o) => <option key={o} value={o}>{COLUMN_LABEL[o]}</option>)}
+                  </select>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {card.preview.map((row, i) => (
+              <tr key={i}>
+                {picks.map((_, j) => (
+                  <td key={j} lang={lang(row[j] ?? "")} className="border-t border-line p-1 whitespace-nowrap">{row[j]}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={!columns} onClick={() => columns && onFix({ columns })} className={primary}>Use these columns</button>
+        {!columns && <span className="text-muted-foreground">Pick one Item and one Qty column.</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Filled in from the file when a code or ΑΦΜ matched one customer, else a search (.scratch/order-file/spec.md → Decisions → 9). */
+function CustomerField({ card, onFix }: { card: OrderCard; onFix: (fix: OrderFix) => void }) {
+  const [changing, setChanging] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const c = card.customer;
+  if (c && !changing) {
+    return (
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <span className="text-muted-foreground">Customer</span>
+        <span lang={lang(c.name)}>{c.name}</span>
+        <span className="font-mono text-muted-foreground">{c.id} · ΑΦΜ {c.afm}</span>
+        <button type="button" aria-label="Change customer" onClick={() => setChanging(true)} className={plain}>Change</button>
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-1.5 text-sm">
+      <p className="flex items-center gap-2">
+        {!c && <Pill text="NO CUSTOMER" token="bad" />} <span className="text-muted-foreground">Search by name, code or ΑΦΜ</span>
+      </p>
+      <FieldForm label="Customer" button="Search" value="" onSubmit={(q) => { setSearched(true); onFix({ customer: q }); }} />
+      {card.customer_candidates.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {card.customer_candidates.map((k) => (
+            <button key={k.id} type="button" lang={lang(k.name)} onClick={() => { setChanging(false); onFix({ customer: k.id }); }} className={plain}>
+              Use {k.name} <span className="font-mono text-muted-foreground">{k.id}</span>
+            </button>
+          ))}
+        </div>
+      ) : searched && <p className="text-muted-foreground">No customer matches.</p>}
+    </div>
+  );
+}
+
+/** After Propose: the stored call as a lines table, then Approve / Reject like any pending write (.scratch/order-file/spec.md → Decisions → 11). */
+function ProposedOrder({ card }: { card: OrderCard }) {
+  const lines = orderLines(card);
+  const skipped = card.rows.filter((r) => r.state === "skipped").map((r) => r.number);
+  if (!lines) return <p className="text-sm text-bad">The stored order doesn&apos;t match these rows. Reject it and attach the file again.</p>;
+  const num = "px-1.5 py-1 text-right tabular-nums whitespace-nowrap";
+  return (
+    <div className="flex flex-col gap-1.5 text-sm">
+      <p className="font-mono" translate="no">New order · {card.call?.tool}</p>
+      {card.customer && <p lang={lang(card.customer.name)}>For {card.customer.name} ({card.customer.id})</p>}
+      <div className="overflow-x-auto">{/* scrolls inside the card, never the page (DESIGN.md → Responsive → Check sizes) */}
+        <table className="w-full">
+          <thead className="text-left text-muted-foreground">
+            <tr>
+              <th className="px-1.5 py-1 font-normal">Row</th>
+              <th className="px-1.5 py-1 font-normal">Item</th>
+              <th className={`${num} font-normal`}>Qty</th>
+              <th className={`${num} font-normal`}>Price</th>
+              <th className={`${num} font-normal`}>Line total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((r) => (
+              <tr key={r.number} className="border-t border-line">
+                <td className="px-1.5 py-1 font-mono tabular-nums">{r.number}</td>
+                <td className="px-1.5 py-1 whitespace-nowrap" lang={lang(r.item?.name ?? "")}>
+                  <span className="font-mono" translate="no">{r.item?.code}</span> {r.item?.name}
+                </td>
+                <td className={num}>{r.qty}</td>
+                <td className={num}>
+                  {euro(r.item?.price ?? 0)}
+                  {r.price_differs && r.file_price !== null && <span className="block text-warn">file {euro(r.file_price)}</span>}
+                </td>
+                <td className={num}>{euro(r.line_total ?? 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-line">
+              <th colSpan={4} className={`${num} font-normal text-muted-foreground`}>Total</th>
+              <td className={`${num} font-semibold`}>{euro(card.total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {skipped.length > 0 && <p className="text-muted-foreground">Skipped rows: {skipped.join(", ")}</p>}
+      <p className="flex items-center gap-2">Starts as <Pill text={card.status} token={statusToken(card.status) ?? "muted"} /></p>
+    </div>
+  );
+}
+
+/**
+ * An order file in the feed (.scratch/order-file/spec.md → Decisions → 8–14): fixes, Propose and Discard while it's open, then the
+ * pending-write card. Only the live card takes input; one that was replaced, decided or discarded stays as a record.
+ */
+function OrderFileCard({ entry: e, next, live, busy, cardRef, onFix, onPropose, onDiscard, onDecide }: {
+  entry: Entry; next?: Entry; live: boolean; busy: boolean; cardRef: React.RefObject<HTMLDivElement | null>;
+  onFix: (fix: OrderFix) => void; onPropose: () => void; onDiscard: () => void; onDecide: (k: Decision) => void;
+}) {
+  if (e.state === "failed") {
+    return <p className="rounded-md border border-bad bg-bad-soft px-3 py-2 text-bad"><span lang={lang(e.text)}>{e.text}</span>: {e.error}</p>;
+  }
+  const c = e.card;
+  if (!c) return <p className={`${block} text-sm text-muted-foreground`}>Order file <span lang={lang(e.text)}>{e.text}</span> discarded.</p>;
+  const id = `card-${e.id}`;
+  return (
+    <div
+      ref={live ? cardRef : undefined}
+      tabIndex={-1}
+      role="group"
+      aria-labelledby={id}
+      className={`flex flex-col gap-2 rounded-md border px-3 py-2 forced-colors:border-2 ${ring} ${c.proposed ? "border-warn bg-warn-soft" : "border-line bg-raised"}`}
+    >
+      <p id={id} className="flex flex-wrap items-center gap-2 font-semibold">
+        {c.proposed ? <><span aria-hidden><Badge status="blocked" /></span> Pending write: needs your approval</> : <>Order file <span className="font-normal" lang={lang(c.name)}>{c.name}</span></>}
+      </p>
+      {c.sheets_ignored.length > 0 && (
+        <p className="text-sm text-muted-foreground">Only the first sheet was read. Ignored: {c.sheets_ignored.join(", ")}.</p>
+      )}
+      {e.error && live && <p className="rounded-sm border border-bad bg-bad-soft px-2 py-1 text-sm text-bad">{e.error}</p>}
+      {c.proposed ? (
+        <>
+          <ProposedOrder card={c} />
+          <Verdict next={next} busy={busy} onDecide={onDecide} approve={!!orderLines(c)} />
+        </>
+      ) : (
+        // Busy: one change at a time, so a second click can't be dropped unseen. Focus comes back to the card after.
+        <fieldset disabled={!live || busy} className="flex min-w-0 flex-col gap-2">
+          {c.missing.length > 0 ? <ColumnPicker card={c} onFix={onFix} /> : (
+            <>
+              <CustomerField card={c} onFix={onFix} />
+              <ul aria-label="Rows" className="flex flex-col">
+                {c.rows.map((r) => <OrderRowView key={`${r.number}-${r.state}-${r.qty}-${r.text}`} r={r} onFix={onFix} />)}
+              </ul>
+              <p className="text-sm tabular-nums">Total so far {euro(c.total)} · starts as {c.status}</p>
+            </>
+          )}
+          <div className="flex flex-wrap items-center gap-2 *:max-sm:flex-1">
+            <button type="button" disabled={!c.can_propose} onClick={onPropose} className={primary}>Propose</button>
+            <button type="button" onClick={onDiscard} className={danger}>Discard</button>
+          </div>
+          {c.problem && <p className="text-sm text-muted-foreground">{c.problem}</p>}
+        </fieldset>
+      )}
     </div>
   );
 }

@@ -27,8 +27,10 @@ export class ClientError extends Error {
   }
 }
 
-async function call<T>(url: string, body?: object): Promise<T> {
-  const init = body && { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+/** A Blob body goes as is (an upload); any other body as JSON. */
+async function call<T>(url: string, body?: object, method = body ? "POST" : "GET"): Promise<T> {
+  const init: RequestInit = body instanceof Blob ? { method, body }
+    : body ? { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { method };
   const r = await fetch(url, init);
   const json: unknown = await r.json().catch(() => ({}));
   if (!r.ok) throw new ClientError(r.status, json && typeof json === "object" ? (json as ClientError["body"]) : {});
@@ -47,3 +49,33 @@ export const newChat = (runtime: Runtime) => call<ChatInfo>("/api/chat", { runti
 export const reset = () => call<ChatInfo>("/api/reset", {});
 export const turn = (text: string) => call<TurnResponse>("/api/turn", { text }).then(asTurn);
 export const decide = (decision: Decision) => call<TurnResponse>("/api/turn", { decision }).then(asTurn);
+
+export interface OrderItem { id: number; code: string; name: string; price: number }
+export interface Customer { id: number; code: string; name: string; afm: string }
+/** One sheet row as matched (GLOSSARY → Open row). `qty` is null when the file's quantity is unusable (`error`). */
+export interface OrderRow {
+  number: number; text: string; qty: number | null; file_price: number | null; error: string | null;
+  state: "ok" | "ambiguous" | "no_item" | "short" | "skipped"; open: boolean;
+  item: OrderItem | null; candidates: OrderItem[]; available: number | null; price_differs: boolean; line_total: number | null;
+}
+export interface OrderCall {
+  tool: string;
+  args: { customer: string; items: { item_name_or_id: string; quantity: number }[]; auto_approve: string };
+}
+/** The open order file as the server keeps it (`agent_platform/order_match.py` `OrderFile.card`). */
+export interface OrderCard {
+  name: string; sheets_ignored: string[]; columns: Record<string, number>; missing: string[]; preview: string[][];
+  rows: OrderRow[]; customer: Customer | null; customer_candidates: Customer[]; total: number; status: string;
+  can_propose: boolean; problem: string | null; proposed: boolean; call: OrderCall | null;
+}
+export type OrderFix =
+  | { row: number; item?: number | string; qty?: number; skip?: boolean }
+  | { customer: number | string }
+  | { columns: Record<string, number> };
+
+/** The open order file, or null. Set means the composer is locked. */
+export const orderFile = () => call<OrderCard | null>("/api/order-file");
+export const attachOrderFile = (file: File) => call<OrderCard>(`/api/order-file?name=${encodeURIComponent(file.name)}`, file);
+export const fixOrderFile = (fix: OrderFix) => call<OrderCard>("/api/order-file", fix, "PATCH");
+export const proposeOrderFile = () => call<OrderCard>("/api/order-file/propose", {});
+export const discardOrderFile = () => call<null>("/api/order-file", undefined, "DELETE");

@@ -16,7 +16,7 @@ import uvicorn  # noqa: E402
 
 from agent_platform.web.server import create_app  # noqa: E402
 from mock_db.create_and_seed import build_db  # noqa: E402
-from tests.fakes import FakeOrchestrator  # noqa: E402
+from tests.fakes import FakeOrchestrator, in_process_mcp  # noqa: E402
 
 
 def main() -> None:
@@ -27,7 +27,9 @@ def main() -> None:
     async def open_chat(runtime: str):
         yield FakeOrchestrator(db)
 
-    uvicorn.run(create_app(open_chat=open_chat, db_path=db), host="127.0.0.1", port=8000, log_level="warning")
+    # Order files read and write over MCP: on this throwaway DB, not a subprocess on the default mock DB.
+    app = create_app(open_chat=open_chat, db_path=db, open_mcp=in_process_mcp(db))
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
 
 
 if __name__ == "__main__":

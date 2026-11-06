@@ -68,6 +68,7 @@ def test_open_rows_block_propose_until_fixed(client):
     assert states(card) == ["ok", "ambiguous", "no_item", "short"]
     assert card["customer"]["id"] == 47 and card["rows"][0]["price_differs"]
     assert not card["can_propose"] and not card["proposed"]
+    assert card["problem"] == "Fix or skip the open rows first."  # the card says why Propose is disabled
     assert client.post("/api/order-file/propose").status_code == 409
 
     card = fixed(client)
@@ -197,6 +198,6 @@ def test_a_refused_approve_keeps_the_fixes_unproposed(client, db_path):
         conn.execute("UPDATE items SET stock = 2, reserved = 0 WHERE id = 1002")
     refused = client.post("/api/turn", json={"decision": "approve"}).json()
     assert "workflow_create_order failed" in refused["error"] and refused["diff"] == []
-    card = client.get("/api/info").json()["order_file"]
+    card = client.get("/api/order-file").json()  # the web reloads the card from here
     assert not card["proposed"] and card["can_propose"]  # stale until a fix matches again
     assert states(client.patch("/api/order-file", json={"row": 3, "qty": 3}).json()) == ["short"]

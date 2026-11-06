@@ -1,5 +1,6 @@
 // Display rules carried over from the old UI (DESIGN.md → Page hierarchy cell rules, Large tables → Filter).
 // Plain TypeScript, no React or DOM.
+import type { OrderCard, OrderRow } from "./client.ts";
 import { compareKeys, type DiffEntry, type Row, type RowChange, type TableChanges } from "./changes.ts";
 
 const MONEY = new Intl.NumberFormat("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -284,4 +285,38 @@ export function rowLinks(t: TraceCall, db: Record<string, Row[]>, keys: Record<s
     if (row) out.push({ table, key: [row[pk[0]]], label: `${labelFor(table)} #${row[pk[0]]}` });
   }
   return out;
+}
+
+/**
+ * A proposed order file's lines table: the rows going on the order, in the stored call's order. Null unless they're
+ * exactly the call's items and quantities, so the card can never show lines other than the ones Approve runs.
+ */
+export function orderLines(card: OrderCard): OrderRow[] | null {
+  const items = card.call?.args.items;
+  const rows = card.rows.filter((r) => r.line_total !== null);
+  if (!items || items.length !== rows.length) return null;
+  const same = rows.every((r, i) => String(r.item?.id) === items[i].item_name_or_id && r.qty === items[i].quantity);
+  return same ? rows : null;
+}
+
+/** The status line after an upload or a fix: how far the order file is from Propose. */
+export function orderSentence(card: OrderCard): string {
+  const head = `Order file ${card.name}:`;
+  if (card.missing.length) return `${head} pick the item and quantity columns.`;
+  const n = card.rows.length, rows = `${n} row${n === 1 ? "" : "s"}`;
+  if (card.can_propose) return `${head} ${rows}, ready to propose.`;
+  const open = card.rows.filter((r) => r.open).length;
+  return `${head} ${rows}, ${open} open.${open ? "" : ` ${card.problem ?? ""}`}`.trimEnd();
+}
+
+export type ColumnPick = "item" | "qty" | "price" | "ignore";
+/** The column pickers as `PATCH {columns}` wants them; null until item and quantity are each picked once. */
+export function pickedColumns(picks: ColumnPick[]): Record<string, number> | null {
+  const out: Record<string, number> = {};
+  for (const [i, p] of picks.entries()) {
+    if (p === "ignore") continue;
+    if (p in out) return null;
+    out[p] = i;
+  }
+  return "item" in out && "qty" in out ? out : null;
 }

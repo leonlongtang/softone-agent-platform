@@ -108,6 +108,8 @@ def create_app(
         return JSONResponse(chat.order_card)
 
     async def order_file(request: Request) -> JSONResponse:
+        if request.method == "GET":  # the open card, e.g. after a page reload or an Approve SoftOne refused
+            return JSONResponse(chat.order_card)
         if request.method == "POST":  # raw body, not multipart: no python-multipart dependency
             return await card(chat.attach(await request.body(), request.query_params.get("name", "")))
         if request.method == "DELETE":
@@ -146,7 +148,7 @@ def create_app(
             Route("/api/info", get_info),
             Route("/api/chat", new_chat, methods=["POST"]),
             Route("/api/turn", turn, methods=["POST"]),
-            Route("/api/order-file", order_file, methods=["POST", "PATCH", "DELETE"]),
+            Route("/api/order-file", order_file, methods=["GET", "POST", "PATCH", "DELETE"]),
             Route("/api/order-file/propose", propose, methods=["POST"]),
             Route("/api/db", tables),
             Route("/api/reset", reset, methods=["POST"]),

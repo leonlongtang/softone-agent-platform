@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
-  applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, jumpTarget, labelFor, matches, nameIndex, nextSort, pendingArgs, rowLinks, statusToken, stepChange, turnError, turnSentence,
+  applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, jumpTarget, labelFor, matches, nameIndex, nextSort, orderLines, orderSentence, pendingArgs, pickedColumns, rowLinks, statusToken, stepChange, turnError, turnSentence,
   type Sort, type TraceCall, type Turn, type TurnResponse,
 } from "./format.ts";
-import { ClientError, decide, info, turn } from "./client.ts";
+import { ClientError, decide, info, type OrderCard, type OrderRow, turn } from "./client.ts";
 
 const keys = { orders: ["id"], order_items: ["order_id", "product_id"] };
 
@@ -245,4 +245,39 @@ test("client: a non-2xx answer throws ClientError with the server's error", asyn
   await assert.rejects(info(), (e) => e instanceof ClientError && e.status === 500);
   stubFetch(502, null);
   await assert.rejects(info(), (e) => e instanceof ClientError && e.status === 502 && e.message === "HTTP 502");
+});
+
+const orderRow = (number: number, over: Partial<OrderRow> = {}): OrderRow => ({
+  number, text: `item ${number}`, qty: 2, file_price: null, error: null, state: "ok", open: false,
+  item: { id: 1000 + number, code: `C${number}`, name: `Item ${number}`, price: 10 }, candidates: [], available: null,
+  price_differs: false, line_total: 20, ...over,
+});
+const orderCard = (rows: OrderRow[], items: { item_name_or_id: string; quantity: number }[] | null): OrderCard => ({
+  name: "order.csv", sheets_ignored: [], columns: { item: 0, qty: 1 }, missing: [], preview: [], rows,
+  customer: { id: 47, code: "C047", name: "Papadopoulos SA", afm: "094000001" }, customer_candidates: [],
+  total: 40, status: "Confirmed", can_propose: false, problem: null, proposed: !!items,
+  call: items && { tool: "workflow_create_order", args: { customer: "47", items, auto_approve: "if_under_threshold" } },
+});
+
+test("order file: the lines table is the stored call's items, or nothing when they disagree", () => {
+  const skipped = orderRow(3, { state: "skipped", item: null, line_total: null });
+  const call = [{ item_name_or_id: "1002", quantity: 2 }, { item_name_or_id: "1004", quantity: 2 }];
+  const card = orderCard([orderRow(2), skipped, orderRow(4)], call);
+  assert.deepEqual(orderLines(card)?.map((r) => r.number), [2, 4]);
+  assert.equal(orderLines(orderCard(card.rows, [call[0], { ...call[1], quantity: 3 }])), null); // another qty
+  assert.equal(orderLines(orderCard(card.rows, [call[1], call[0]])), null); // another order
+  assert.equal(orderLines(orderCard(card.rows, [call[0]])), null); // a line missing
+  assert.equal(orderLines(orderCard(card.rows, null)), null); // not proposed
+});
+
+test("order file: what the status line says, and the columns the pickers send", () => {
+  const open = orderRow(5, { state: "no_item", open: true, item: null, line_total: null });
+  assert.equal(orderSentence(orderCard([orderRow(2), open], null)), "Order file order.csv: 2 rows, 1 open.");
+  assert.equal(orderSentence({ ...orderCard([orderRow(2)], null), missing: ["qty"] }), "Order file order.csv: pick the item and quantity columns.");
+  assert.equal(orderSentence({ ...orderCard([orderRow(2)], null), can_propose: true }), "Order file order.csv: 1 row, ready to propose.");
+  assert.equal(orderSentence({ ...orderCard([orderRow(2)], null), customer: null, problem: "Pick the customer first." }), "Order file order.csv: 1 row, 0 open. Pick the customer first.");
+
+  assert.deepEqual(pickedColumns(["qty", "ignore", "item", "price"]), { qty: 0, item: 2, price: 3 });
+  assert.equal(pickedColumns(["item", "ignore"]), null); // no quantity
+  assert.equal(pickedColumns(["item", "qty", "qty"]), null); // two quantities
 });

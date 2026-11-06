@@ -332,6 +332,7 @@ class OrderFile:
         self.call = {"tool": "workflow_create_order", "args": args}
 
     def card(self) -> dict[str, Any]:
+        problem = self.problem()
         rows = [
             {
                 "number": m.row.number,
@@ -360,7 +361,8 @@ class OrderFile:
             "customer_candidates": self.customer_candidates,
             "total": self.total,
             "status": self.status,
-            "can_propose": self.problem() is None,
+            "can_propose": problem is None,
+            "problem": problem,  # why Propose is disabled, for the card to say
             "proposed": self.call is not None,
             "call": self.call,
         }
