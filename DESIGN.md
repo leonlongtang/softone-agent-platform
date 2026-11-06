@@ -180,6 +180,7 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 3. For a write, the **approval card** (`--warn` border on `--warn-soft`):
    - a `BLOCKED` badge and "Pending write: needs your approval";
    - the call with named, labelled args in mono;
+   - a link for each existing row the call names (see Pending-write preview);
    - **Approve** (filled accent) and **Reject** (`--bad` outline);
    - while the write runs, the buttons give way to "Writing… Ns"; afterwards the verdict ("Approved" / "Rejected") is stamped on the card.
 4. The result: a `RAN` badge with the tool name, then the reply.
@@ -207,6 +208,12 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 3. **New chat** (runtime menu): confirms when there are turns ("The database is not touched") and clears the conversation and the turn changes.
 4. **Switch runtime:** confirms (switching to Claude says each turn is billed), then starts a new chat.
 5. **Reset demo data:** a danger-styled confirmation says the chat is cleared too. It reseeds every table.
+
+### Pending-write preview
+
+- **No ghost rows.** Before approval the table shows only what's really there. The approval card, with its named args, is the preview.
+- **Why:** approval goes by tool name, not by exact args, and the model re-sends the call on the "yes" turn, sometimes with slightly different args. A preview built from the blocked call could differ from what gets written, and a wrong preview is worse than none on an approval screen. A dry run (write, diff, roll back) would need a no-commit path in the MCP servers next to the write gate, which is out of scope. It would also only work on the mock.
+- **Row links on the card:** when the blocked call's args carry a primary key for an existing row (`update_item(id=42)`), the card shows a link ("Items #42") that jumps to that row the same way a change chip does. Only rows that exist get a link, so creates get none. The link reads the table and never predicts a change.
 
 ### States
 
