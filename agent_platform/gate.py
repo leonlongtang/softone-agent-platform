@@ -19,7 +19,6 @@ WRITE_TOOLS = frozenset(
         "workflow_create_order", "workflow_order_to_cash",
     }
 )  # fmt: skip
-READ_PREFIXES = ("get_", "list_", "search_", "check_")
 
 APPROVAL_WORDS = {"yes", "y", "confirm", "confirmed", "approve", "proceed", "ok"}
 
@@ -29,6 +28,11 @@ NEEDS_CONFIRMATION = (
 )
 
 ALREADY_DONE = "`{tool}` already ran with these exact arguments this turn. Do not repeat it; use its earlier result."
+
+
+def is_write(tool: str) -> bool:
+    """The one read/write classifier: everything not in WRITE_TOOLS is a read."""
+    return tool in WRITE_TOOLS
 
 
 def is_approval(text: str) -> bool:
@@ -80,7 +84,7 @@ class WriteGate(dict):
         return None
 
     def _decide(self, tool: str, intent: dict[str, Any]) -> str:
-        if tool not in WRITE_TOOLS:
+        if not is_write(tool):
             return "read"
         call = f"{tool}:{json.dumps(intent, sort_keys=True, default=str)}"
         if call in self.ran:

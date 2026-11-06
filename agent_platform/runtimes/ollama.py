@@ -11,7 +11,7 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent_platform.gate import WriteGate
+from agent_platform.gate import WriteGate, is_write
 from agent_platform.mcp_tools import CONNECT_TOOL_NAME, MCP_SERVER_NAME, mcp_server_params
 from agent_platform.prompting import PromptPolicy, build_system_prompt
 from agent_platform.runtimes.base import BAD_TOOL_INPUT, HISTORY_KEY, RunContext, RuntimeAdapter, ToolError
@@ -127,13 +127,7 @@ def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
             except Exception as exc:
                 attempts += 1
                 is_transient = isinstance(exc, (TimeoutError, ConnectionError, OSError))
-                is_connect = tool.name == CONNECT_TOOL_NAME
-                is_read = tool.name.startswith(("get_", "list_", "search_")) or tool.name in {
-                    "check_inventory",
-                    "get_stock_balance",
-                    "get_context",
-                }
-                can_retry = attempts <= 1 and is_transient and (is_connect or is_read)
+                can_retry = attempts <= 1 and is_transient and not is_write(tool.name)
                 if debug:
                     logger.debug("[mcp] !! %s\n%s", tool.name, traceback.format_exc())
                 if not can_retry:
