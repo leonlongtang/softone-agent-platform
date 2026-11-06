@@ -91,6 +91,17 @@ def _build_retry_question(tool_name: str, error: dict[str, Any]) -> str:
     return f"{message} How do you want to proceed?"
 
 
+def _is_session_error(err: dict[str, Any]) -> bool:
+    """An expired or missing SoftOne login. Conservative: only obvious auth/session failures reconnect."""
+    msg = str(err.get("message") or "").lower()
+    code = err.get("code")
+    if code == -1 and "login" in msg:  # SoftOne: "Invalid request. Please login first"
+        return True
+    if isinstance(code, int) and code in {-401, 401, 403}:
+        return True
+    return any(k in msg for k in ("session", "not authenticated", "unauthorized", "forbidden", "auth"))
+
+
 def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
     """Preserve args_schema; enforce the write gate; normalize the result; raise ToolError on ok:false."""
 
@@ -123,6 +134,7 @@ def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
                         "message": str(exc),
                         "details": {"tool": str(tool.name)},
                     },
+                    kind="bad_input",
                 ) from exc
             except Exception as exc:
                 attempts += 1
@@ -142,7 +154,8 @@ def _wrap_tool(tool: Any, *, gate: WriteGate, debug: bool) -> Any:
             err_obj = result.get("error")
             if not isinstance(err_obj, dict):
                 err_obj = {"message": str(err_obj) if err_obj else "Tool failed."}
-            raise ToolError(tool_name=str(tool.name), error=err_obj)
+            kind = "session" if _is_session_error(err_obj) else "other"
+            raise ToolError(tool_name=str(tool.name), error=err_obj, kind=kind)
         return result
 
     return StructuredTool.from_function(

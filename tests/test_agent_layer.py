@@ -10,7 +10,7 @@ pytest.importorskip("langgraph")
 
 from agent_platform.graph import SESSION_ID_KEY, RuntimePolicy, build_orchestrator
 from agent_platform.prompting import PromptPolicy, build_system_prompt
-from agent_platform.runtimes.base import BAD_TOOL_INPUT, RunContext, RuntimeAdapter, ToolError
+from agent_platform.runtimes.base import RunContext, RuntimeAdapter, ToolError
 from agent_platform.specs import SPECS
 
 
@@ -36,7 +36,8 @@ class FakeRuntime(RuntimeAdapter):
 
     name: str
     fail: bool = False
-    error_code: str = BAD_TOOL_INPUT
+    error_kind: str = "bad_input"
+    fail_once: bool = False
     reply: str | None = None
     seen: list[str] = field(default_factory=list)
 
@@ -45,8 +46,9 @@ class FakeRuntime(RuntimeAdapter):
 
     async def run_turn(self, *, spec, user_text: str, context: RunContext) -> str:  # type: ignore[override]
         self.seen.append(spec.name)
-        if self.fail:
-            raise ToolError(tool_name="create_order", error={"code": self.error_code, "message": "boom"})
+        if self.fail or self.fail_once:
+            self.fail_once = False
+            raise ToolError(tool_name="create_order", error={"message": "boom"}, kind=self.error_kind)  # type: ignore[arg-type]
         return f"{spec.name}: {user_text}" if self.reply is None else self.reply
 
 
@@ -139,10 +141,17 @@ def test_tool_error_escalates_that_turn_only() -> None:
 
 
 def test_business_rule_error_is_relayed_not_escalated() -> None:
-    ollama = FakeRuntime("ollama", fail=True, error_code="INVALID_STATUS")
+    ollama = FakeRuntime("ollama", fail=True, error_kind="other")
     claude = FakeRuntime("claude")
     state = _turn(build_orchestrator(ollama=ollama, claude=claude), {"artifacts": {}}, "approve order 5001")
     assert state["runtime"] == "ollama" and "boom" in state["response"] and claude.seen == []
+
+
+def test_session_error_reconnects_and_reruns_once() -> None:
+    ollama, claude = FakeRuntime("ollama", fail_once=True, error_kind="session"), FakeRuntime("claude")
+    state = _turn(build_orchestrator(ollama=ollama, claude=claude), {"artifacts": {}}, "approve order 5001")
+    assert ollama.seen == ["sales", "sales"] and claude.seen == []
+    assert state["response"] == "sales: approve order 5001"
 
 
 def test_tool_error_without_escalation_asks_user() -> None:

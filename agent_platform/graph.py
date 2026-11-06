@@ -16,7 +16,7 @@ from langgraph.graph.state import StateGraph
 
 from agent_platform.gate import WriteGate, pending_summary
 from agent_platform.router import CLARIFY_QUESTION, DEPARTMENTS, hybrid_route, is_follow_up_detail, named_department
-from agent_platform.runtimes.base import BAD_TOOL_INPUT, HISTORY_KEY, RunContext, RuntimeAdapter, ToolError
+from agent_platform.runtimes.base import HISTORY_KEY, RunContext, RuntimeAdapter, ToolError
 from agent_platform.specs import SPECS, AgentSpec
 
 SESSION_ID_KEY = "session_id"
@@ -43,17 +43,6 @@ class RuntimePolicy:
 
     default: str = "ollama"
     escalate_to: str | None = "claude"
-
-
-def _looks_like_session_error(err: dict) -> bool:
-    msg = str(err.get("message") or "").lower()
-    code = err.get("code")
-    # Keep this conservative: only reconnect on obvious auth/session failures.
-    if isinstance(code, int) and code in {-401, 401, 403}:
-        return True
-    if any(k in msg for k in ("session", "not authenticated", "unauthorized", "forbidden", "auth")):
-        return True
-    return False
 
 
 def _transcript(artifacts: dict[str, Any], last: int = 8) -> str:
@@ -145,7 +134,7 @@ def build_orchestrator(
             return state
         except ToolError as te:
             error = te
-            if runtime_name == "ollama" and _looks_like_session_error(te.error):
+            if runtime_name == "ollama" and te.kind == "session":
                 # Session expired: reconnect once and rerun the same turn.
                 state["artifacts"].pop(SESSION_ID_KEY, None)
                 try:
@@ -161,7 +150,7 @@ def build_orchestrator(
         escalate_to = policy.escalate_to
         # Only a model mistake (malformed tool input) is worth a stronger model. A business-rule
         # error ("invoice needs a confirmed order") is the answer: relay it to the user.
-        if escalate_to in (None, runtime_name) or error.error.get("code") != BAD_TOOL_INPUT:
+        if escalate_to in (None, runtime_name) or error.kind != "bad_input":
             state["runtime"] = runtime_name
             state["response"] = f"{msg}\n\nTell me how you want to adjust the inputs, and I'll retry."
             return state

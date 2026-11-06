@@ -159,6 +159,37 @@ def test_ollama_wrapper_retries_reads_once_never_writes(name: str, calls: int) -
     assert tool.calls == calls
 
 
+@pytest.mark.parametrize(
+    ("envelope", "kind"),
+    [
+        ({"ok": False, "error": {"code": -1, "message": "Invalid request. Please login first"}}, "session"),
+        ({"ok": False, "error": {"code": "INVALID_STATUS", "message": "invoice needs a confirmed order"}}, "other"),
+        (None, "bad_input"),  # the tool's schema rejects the input
+    ],
+)
+def test_ollama_wrapper_classifies_tool_errors(envelope: dict | None, kind: str) -> None:
+    from langchain_core.tools.base import ToolException
+    from pydantic import BaseModel
+
+    from agent_platform.runtimes.base import ToolError
+    from agent_platform.runtimes.ollama import _wrap_tool
+
+    class Args(BaseModel):
+        customer_id: int
+
+    class McpTool:
+        name, description, args_schema = "get_customer", "", Args
+
+        async def ainvoke(self, kwargs):
+            if envelope is None:
+                raise ToolException("customer_id: field required")
+            return envelope
+
+    with pytest.raises(ToolError) as caught:
+        asyncio.run(_wrap_tool(McpTool(), gate=WriteGate(), debug=False).ainvoke({"customer_id": 47}))
+    assert caught.value.kind == kind
+
+
 def test_claude_permission_callback_gates_writes_and_enforces_allowlist() -> None:
     from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny
 
