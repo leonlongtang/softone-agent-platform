@@ -1,6 +1,6 @@
 # 03: Order file in the Chat and the API
 
-Status: needs-triage
+Status: ready-for-agent
 Blocked by: 02
 Implements: `.scratch/order-file/spec.md` → Decisions 8, 11, 12, 13, 14, 15
 

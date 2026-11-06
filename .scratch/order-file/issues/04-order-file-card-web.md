@@ -1,6 +1,6 @@
 # 04: Order-file card in the web UI
 
-Status: needs-triage
+Status: ready-for-agent
 Blocked by: 03
 Implements: `.scratch/order-file/spec.md` → Decisions 1, 6, 8, 9, 10, 11, 14
 

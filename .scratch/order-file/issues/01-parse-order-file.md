@@ -1,6 +1,6 @@
 # 01: Parse an order file
 
-Status: needs-triage
+Status: ready-for-agent
 Blocked by: none
 Implements: `.scratch/order-file/spec.md` → Decisions 4, 5, 6, 16
 

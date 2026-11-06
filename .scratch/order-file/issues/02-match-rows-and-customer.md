@@ -1,6 +1,6 @@
 # 02: Match rows and find the customer
 
-Status: needs-triage
+Status: ready-for-agent
 Blocked by: 01
 Implements: `.scratch/order-file/spec.md` → Decisions 3, 7, 9, 10
 
