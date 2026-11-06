@@ -47,7 +47,8 @@ def build_system_prompt(
         parts.append(
             "TOOL RESPONSE ENVELOPE:\n"
             "- Success: `{ \"ok\": true, \"data\": ..., \"meta\": {\"trace_id\", \"tool\", \"actions\"} }`\n"
-            "- Error: `{ \"ok\": false, \"error\": { \"code\", \"message\", \"details\" }, \"meta\": {\"trace_id\", \"tool\", \"actions\"} }`"
+            "- Error: `{ \"ok\": false, \"error\": { \"code\", \"message\", \"details\" }, "
+            "\"meta\": {\"trace_id\", \"tool\", \"actions\"} }`"
         )
 
     if policy.stop_on_tool_error:

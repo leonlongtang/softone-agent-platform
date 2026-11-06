@@ -136,7 +136,9 @@ class SoftOneClient:
         _ = self._sessions.get(session_id)
         if hasattr(self._gateway, "list_invoices"):
             return getattr(self._gateway, "list_invoices")(status=status, customer_id=customer_id)
-        raise SoftOneError(-9, "Listing invoices is only supported in mock mode.", {"status": status, "customer_id": customer_id})
+        raise SoftOneError(
+            -9, "Listing invoices is only supported in mock mode.", {"status": status, "customer_id": customer_id}
+        )
 
     def list_orders(
         self,
@@ -166,7 +168,9 @@ class SoftOneClient:
         _ = self._sessions.get(session_id)
         if hasattr(self._gateway, "list_payments_for_invoice"):
             return getattr(self._gateway, "list_payments_for_invoice")(invoice_id)
-        raise SoftOneError(-9, "Listing payments by invoice is only supported in mock mode.", {"invoice_id": invoice_id})
+        raise SoftOneError(
+            -9, "Listing payments by invoice is only supported in mock mode.", {"invoice_id": invoice_id}
+        )
 
     def start_connection(
         self,
@@ -288,7 +292,9 @@ class SoftOneClient:
 
     def getObjects(self, *, session_id: str) -> dict[str, Any]:
         s = self._sessions.get(session_id)
-        return self._call(base_url=s.base_url, payload={"service": "getObjects", "clientID": s.client_id, "appId": s.app_id})
+        return self._call(
+            base_url=s.base_url, payload={"service": "getObjects", "clientID": s.client_id, "appId": s.app_id}
+        )
 
     def getObjectTables(self, *, session_id: str, OBJECT: str) -> dict[str, Any]:
         s = self._sessions.get(session_id)

@@ -81,7 +81,8 @@ def inventory_agent_spec() -> AgentSpec:
             "\n"
             "SAFETY RULES:\n"
             "- Never invent item IDs. If the user gives a code/name, search/get first and confirm the chosen item.\n"
-            "- Do NOT change inventory as a side effect of other workflows (e.g. order creation). Only do writes when the user explicitly asks to change stock or create/update items.\n"
+            "- Do NOT change inventory as a side effect of other workflows (e.g. order creation). "
+            "Only do writes when the user explicitly asks to change stock or create/update items.\n"
             "- If stock is insufficient or constraints apply, explain clearly and ask how to proceed.\n"
             "\n"
             "DEFAULTS:\n"
@@ -109,7 +110,8 @@ def finance_agent_spec() -> AgentSpec:
             "\n"
             "SAFETY RULES:\n"
             "- Never guess amounts, invoice IDs, or payment IDs.\n"
-            "- If the user references an invoice by something ambiguous, retrieve it first and confirm the exact invoice.\n"
+            "- If the user references an invoice by something ambiguous, "
+            "retrieve it first and confirm the exact invoice.\n"
             "- If an invoice is unpaid/partially paid, show the relevant status before recording a payment.\n"
         ),
         tool_names=(

@@ -599,7 +599,8 @@ def _print_quickstart(result: SeedResult) -> None:
     print(json.dumps(result.account, indent=2))
     print()
     print("Mock clientIDs:")
-    print(json.dumps({"temporary_clientID": result.temporary_client_id, "final_clientID": result.final_client_id}, indent=2))
+    ids = {"temporary_clientID": result.temporary_client_id, "final_clientID": result.final_client_id}
+    print(json.dumps(ids, indent=2))
 
 
 def build_db(db_path: Path = DEFAULT_DB_PATH) -> SeedResult:

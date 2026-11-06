@@ -75,7 +75,9 @@ class ClaudeSdkRuntime(RuntimeAdapter):
         return ClaudeAgentOptions(
             cwd=str(REPO_ROOT),
             mcp_servers={
-                MCP_SERVER_NAME: {"type": "stdio", "command": params["command"], "args": params["args"], "env": params["env"]}
+                MCP_SERVER_NAME: {
+                    "type": "stdio", "command": params["command"], "args": params["args"], "env": params["env"]
+                }
             },
             tools=[],  # no built-in Claude Code tools (Bash, Read, ...): MCP tools only
             setting_sources=[],  # ignore the developer's own Claude Code settings and hooks: reproducible agent

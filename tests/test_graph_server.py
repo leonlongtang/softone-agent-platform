@@ -30,7 +30,9 @@ class CountingWriter(FakeRuntime):
 
 def _persisted_app():
     CountingWriter.writes = 0
-    app = build_orchestrator(ollama=CountingWriter("ollama"), claude=FakeRuntime("claude"), checkpointer=InMemorySaver())
+    app = build_orchestrator(
+        ollama=CountingWriter("ollama"), claude=FakeRuntime("claude"), checkpointer=InMemorySaver()
+    )
     return app, {"configurable": {"thread_id": "t1"}}
 
 

@@ -262,7 +262,8 @@ class OllamaRuntime(RuntimeAdapter):
             "SESSION\n"
             "- A SoftOne session is already open. Use this exact session_id on every tool call:\n"
             f"    session_id = {session_id}\n"
-            "- Never invent a different session_id. Never reconnect. If a tool returns an auth/session error, tell the user and stop."
+            "- Never invent a different session_id. Never reconnect. "
+            "If a tool returns an auth/session error, tell the user and stop."
         )
         return build_system_prompt(
             base=spec.system_prompt,

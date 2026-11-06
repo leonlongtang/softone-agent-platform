@@ -126,7 +126,9 @@ def login(
             final_client_id = _new_client_id()
             conn.execute(
                 """
-                INSERT INTO sessions(client_id, account_id, is_final, created_at, expires_at, company, branch, module, refid)
+                INSERT INTO sessions(
+              client_id, account_id, is_final, created_at, expires_at, company, branch, module, refid
+            )
                 VALUES (?,?,?,?,?,?,?,?,?)
                 """,
                 (
@@ -223,7 +225,9 @@ def authenticate(
         final_client_id = _new_client_id()
         conn.execute(
             """
-            INSERT INTO sessions(client_id, account_id, is_final, created_at, expires_at, company, branch, module, refid)
+            INSERT INTO sessions(
+              client_id, account_id, is_final, created_at, expires_at, company, branch, module, refid
+            )
             VALUES (?,?,?,?,?,?,?,?,?)
             """,
             (

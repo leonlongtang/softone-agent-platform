@@ -26,7 +26,9 @@ class GetContextOut(BaseModel):
 def register_connect_tools(mcp: FastMCP, client: SoftOneClient) -> None:
     @mcp.tool(
         name="softone_connect_default",
-        description="Connect using .env (SOFTONE_*) and return a session_id (auto-picks first COMPANY/BRANCH/MODULE/REFID).",
+        description=(
+            "Connect using .env (SOFTONE_*) and return a session_id (auto-picks first COMPANY/BRANCH/MODULE/REFID)."
+        ),
     )
     def softone_connect_default() -> dict[str, Any]:
         cfg = load_config()

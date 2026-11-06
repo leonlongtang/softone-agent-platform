@@ -1,6 +1,6 @@
 # 01: Scaffold `web/` with tokens, fonts and CI
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none
 Implements: `DESIGN.md` → Stack; Visual identity (theme, typography, token names); Responsive → Breakpoints (viewport meta)
 

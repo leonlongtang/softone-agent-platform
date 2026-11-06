@@ -15,6 +15,12 @@ These docs describe how the **API wrapper** and **MCP server** fit together, so 
 - [playbook invoices](agents/playbooks/invoices.md) (end-to-end invoice workflows for agents)
 - [order to cash](agents/workflows/order_to_cash.md) (end-to-end workflow: customer -> order -> invoice -> payment)
 
+## Where mock mode lives
+
+- **Reads** (list/search SQL, sort order, limits): `softone_wrapper/infrastructure/mock_gateway.py`. The MCP tool → `softone_mcp/business` → `softone_mcp/internal` → `softone_wrapper/client.py` chain only passes arguments through.
+- **Writes** and the WS services: `mock_db/ws/objects/` and `mock_db/ws/services/`.
+- **Seed data**: `mock_db/create_and_seed.py` (original rows, then the bulk demo rows).
+
 ## Key conventions
 
 - **SoftOne terms**: `OBJECT`, `KEY`, `data`, `LOCATEINFO` (match SoftOne WS)

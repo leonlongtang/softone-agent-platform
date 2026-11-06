@@ -1,6 +1,6 @@
 # 02: Operator-scale seed and gzip
 
-Status: done
+Status: resolved
 Blocked by: none
 Implements: `DESIGN.md` → Demo data; Large tables (API change)
 

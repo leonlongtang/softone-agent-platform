@@ -69,7 +69,8 @@ def test_item_reply_mid_order_stays_with_sales() -> None:
     ollama = FakeRuntime("ollama")
     app = build_orchestrator(ollama=ollama, claude=FakeRuntime("claude"))
     state: dict = {"artifacts": {}}
-    for text in ("create a new order for customer 50", "5 of item id 1002 and 7 of id 1005", "check stock for item 1002"):
+    texts = ("create a new order for customer 50", "5 of item id 1002 and 7 of id 1005", "check stock for item 1002")
+    for text in texts:
         state = _turn(app, state, text)
     assert ollama.seen == ["sales", "sales", "inventory"]
 
@@ -157,7 +158,9 @@ def test_session_id_persisted_for_ollama_only() -> None:
     app = build_orchestrator(ollama=FakeRuntime("ollama"), claude=FakeRuntime("claude"))
     assert _turn(app, {"artifacts": {}}, "approve order 5001")["artifacts"][SESSION_ID_KEY] == "SID-123"
 
-    app2 = build_orchestrator(ollama=FakeRuntime("ollama"), claude=FakeRuntime("claude"), policy=RuntimePolicy(default="claude"))
+    app2 = build_orchestrator(
+        ollama=FakeRuntime("ollama"), claude=FakeRuntime("claude"), policy=RuntimePolicy(default="claude")
+    )
     assert SESSION_ID_KEY not in _turn(app2, {"artifacts": {}}, "approve order 5001")["artifacts"]
 
 
