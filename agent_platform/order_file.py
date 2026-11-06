@@ -99,12 +99,13 @@ def parse(data: bytes, filename: str, columns: dict[str, int] | None = None) -> 
 def _read_csv(data: bytes) -> list[list]:
     text = _decode(data)
     lines = text.splitlines()  # handles \r\n, \n and old-Mac \r alike
+    # The separator on the most of the first lines; csv.Sniffer gives up (or picks the decimal comma) when a
+    # preamble line has fewer fields than the table. Ties go to ",".
+    # ponytail: counts lines holding the character, not consistent field counts, so a ";" file whose first 20
+    # lines all hold a comma too reads as comma-separated. Tie-break on equal field counts per line if that shows up.
+    delimiter = max(",;\t", key=lambda d: sum(d in line for line in lines[:20]))
     try:
-        dialect = csv.Sniffer().sniff("\n".join(lines[:20]), delimiters=",;\t")
-    except csv.Error:
-        dialect = csv.excel
-    try:
-        return list(csv.reader(lines, dialect))
+        return list(csv.reader(lines, delimiter=delimiter))
     except csv.Error as e:
         raise OrderFileError(NOT_AN_ORDER_FILE) from e
 

@@ -14,9 +14,11 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from agent_platform.chat import Chat, ChatUnavailable, NothingPending
+from agent_platform.chat import Chat, ChatUnavailable, Conflict
 from agent_platform.gate import WRITE_TOOLS
 from agent_platform.graph import escalation_enabled, open_orchestrator
+from agent_platform.order_file import OrderFileError
+from agent_platform.order_match import MatchError, open_mcp
 from agent_platform.specs import SPECS
 from agent_platform.web import db
 from config import load_config
@@ -35,13 +37,24 @@ async def _tool_catalog() -> dict[str, list[dict[str, Any]]]:
     }
 
 
-def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Path = db.DEFAULT_DB_PATH) -> Starlette:
-    """`open_chat(runtime)` is an async context manager yielding an orchestrator (tests pass a fake)."""
+def create_app(
+    *,
+    open_chat: Callable[..., Any] = open_orchestrator,
+    db_path: Path = db.DEFAULT_DB_PATH,
+    open_mcp: Callable[[], Any] = open_mcp,
+) -> Starlette:
+    """`open_chat(runtime)` yields an orchestrator, `open_mcp()` an MCP `call_tool` (tests pass fakes for both)."""
     mock = load_config().mock
-    chat = Chat(open_chat, snapshot=functools.partial(db.snapshot, db_path) if mock else None)
+    chat = Chat(open_chat, snapshot=functools.partial(db.snapshot, db_path) if mock else None, open_mcp=open_mcp)
 
     def info() -> dict[str, Any]:
-        return {"runtime": chat.runtime, "ready": chat.ready, "escalation": escalation_enabled()}
+        # `order_file` set means the composer is locked until it's discarded, approved or rejected.
+        return {
+            "runtime": chat.runtime,
+            "ready": chat.ready,
+            "escalation": escalation_enabled(),
+            "order_file": chat.order_card,
+        }
 
     async def get_info(_: Request) -> JSONResponse:
         keys = db.primary_keys(db_path) if mock else {}
@@ -73,7 +86,7 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
             result = await call
         except ChatUnavailable as exc:
             return JSONResponse({"error": str(exc)}, status_code=503)
-        except NothingPending as exc:  # e.g. a stale card after New chat
+        except Conflict as exc:  # e.g. a stale card after New chat, or an order file is open
             return JSONResponse({"error": str(exc)}, status_code=409)
         out: dict[str, Any] = {"trace": result.trace, "pending": bool(result.pending), "diff": result.changes}
         if result.error:
@@ -81,6 +94,31 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
         else:
             out.update(response=result.response, route=result.route, runtime=result.runtime)
         return JSONResponse(out)
+
+    async def card(call: Any) -> JSONResponse:
+        """Run an order-file change; answer with the card state (null once it's discarded)."""
+        try:
+            await call
+        except OrderFileError as exc:  # a bad file or fix: the message says what to do
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        except Conflict as exc:
+            return JSONResponse({"error": str(exc)}, status_code=409)
+        except MatchError as exc:  # SoftOne couldn't be read
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        return JSONResponse(chat.order_card)
+
+    async def order_file(request: Request) -> JSONResponse:
+        if request.method == "POST":  # raw body, not multipart: no python-multipart dependency
+            return await card(chat.attach(await request.body(), request.query_params.get("name", "")))
+        if request.method == "DELETE":
+            return await card(chat.discard())
+        change = await request.json()
+        if not isinstance(change, dict):
+            return JSONResponse({"error": "send a JSON object"}, status_code=400)
+        return await card(chat.fix(change))
+
+    async def propose(_: Request) -> JSONResponse:
+        return await card(chat.propose())
 
     async def tables(_: Request) -> JSONResponse:
         if not mock:
@@ -108,6 +146,8 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
             Route("/api/info", get_info),
             Route("/api/chat", new_chat, methods=["POST"]),
             Route("/api/turn", turn, methods=["POST"]),
+            Route("/api/order-file", order_file, methods=["POST", "PATCH", "DELETE"]),
+            Route("/api/order-file/propose", propose, methods=["POST"]),
             Route("/api/db", tables),
             Route("/api/reset", reset, methods=["POST"]),
         ],

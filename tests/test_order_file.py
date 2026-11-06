@@ -35,6 +35,12 @@ def test_csv_encodings_parse_the_same(encoding):
     assert summary(parsed) == [(2, "2001", 3, 1.5, None), (3, "2002", 10, 0.2, None)]
 
 
+def test_csv_semicolons_with_a_short_preamble_line_and_decimal_commas():
+    parsed = parse("Πελάτης;999863881\nΚωδικός;Ποσότητα;Τιμή\n1002;1;22,00\nKEYB-01;3;\n".encode(), "o.csv")
+    assert summary(parsed) == [(3, "1002", 1, 22.0, None), (4, "KEYB-01", 3, None, None)]
+    assert parsed.hints == ["999863881"]
+
+
 def test_csv_comma_delimited_english_headers():
     parsed = parse(b"SKU,Qty,Unit Price\nA-1,2,22.00\n", "o.csv")
     assert summary(parsed) == [(2, "A-1", 2, 22.0, None)]
