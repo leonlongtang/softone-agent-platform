@@ -128,7 +128,17 @@ export function Workspace() {
       return; // Retry reloads tables these changes didn't come from
     }
     setChanges(res.changes); // with the new rows, so a deleted row isn't listed twice
+    autoJump.current = true;
   }
+  // After a write, go to its first change, as a click on the first chip would (DESIGN.md → What changed → Jumping).
+  // In an effect so the jump sees the refetched rows and the new changes.
+  const autoJump = useRef(false);
+  useEffect(() => {
+    if (!autoJump.current) return;
+    autoJump.current = false;
+    const first = Object.keys(changes)[0];
+    if (first) chatRef.current?.jump(first, undefined, document.documentElement.dataset.input === "keys"); // keys: no motion
+  }, [changes]);
 
   const db = state.status === "ok" ? state.db : null;
   const keys = state.status === "ok" ? state.info.keys : {};

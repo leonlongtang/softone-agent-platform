@@ -12,6 +12,18 @@
       "runtimeExecutable": "powershell",
       "runtimeArgs": ["-NoProfile", "-Command", "$env:ANTHROPIC_API_KEY=' '; .venv\\Scripts\\python -m agent_platform.web"],
       "port": 8000
+    },
+    {
+      "name": "fake-api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "python", "-m", "tests.e2e_server"],
+      "port": 8000
+    },
+    {
+      "name": "agents-ui-claude",
+      "runtimeExecutable": ".venv\\Scripts\\python",
+      "runtimeArgs": ["-m", "agent_platform.web"],
+      "port": 8000
     }
   ]
 }

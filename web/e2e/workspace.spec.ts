@@ -39,13 +39,20 @@ async function askForWrite(page: Page, scan = false) {
 
 const order5006 = (page: Page) => page.getByRole("row").filter({ has: page.getByRole("cell", { name: "5006", exact: true }) });
 
-test("approve: 5006 is marked added, the chat folds, the chip reads Orders +1", async ({ page }) => {
+test("approve: jumps to 5006, marked added, the chat folds, the chip reads Orders +1", async ({ page }) => {
   await askForWrite(page, true);
   await axe(page, "approval card");
+  // Start elsewhere, scrolled, so the auto-jump has somewhere to go.
+  await page.getByRole("navigation", { name: "Tables" }).getByRole("button", { name: /^Items/ }).click();
   await page.getByRole("button", { name: "Approve" }).click();
 
-  await expect(page.getByRole("status")).toHaveText("Written. Orders: 1 added. Press ] to go to the changes.");
+  // The write lands the operator on its first change (DESIGN.md → What changed → Jumping).
+  await expect(page.getByRole("status")).toHaveText(/^Orders, row \d+: added\. Change 1 of 1\.$/);
+  await expect(page.getByRole("region", { name: /^Orders table/ })).toBeVisible();
+  await expect(order5006(page)).toBeInViewport();
+  await expect(order5006(page)).toHaveAttribute("data-flash", "true");
   await expect(order5006(page)).toHaveAttribute("data-change", "insert");
+  await expect(page.locator("[data-ruler] [data-tick]")).toHaveAttribute("data-tick", "insert"); // one tick, by the scrollbar
   await expect(order5006(page).getByRole("cell").first()).toHaveText("+added");
   await expect(page.getByRole("button", { name: "Chat (1)" })).toBeVisible(); // folded
   await expect(page.getByRole("list", { name: "Changes this turn" })).toHaveText("Orders +1");
@@ -177,7 +184,7 @@ test("backend down: Can't reach the API, with Retry", async ({ page }) => {
 const press = (page: Page, init: { code: string; key: string; shiftKey?: boolean; ctrlKey?: boolean }) =>
   page.evaluate((i) => !(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...i })), init);
 
-test("keyboard approve: Enter on the card writes nothing; Tab, Enter approves; Esc, ] lands on 5006", async ({ page }) => {
+test("keyboard approve: Enter on the card writes nothing; Tab, Enter approves and lands on 5006; ] stays on it", async ({ page }) => {
   await page.goto("/");
   const table = page.getByRole("region", { name: /^Orders table/ });
   await expect(table).toBeVisible();
@@ -215,10 +222,12 @@ test("keyboard approve: Enter on the card writes nothing; Tab, Enter approves; E
   await expect(order5006(page)).toHaveCount(0);
   await page.keyboard.press("Enter");
   await expect(order5006(page)).toHaveAttribute("data-change", "insert");
-  await expect(composer).toBeFocused();
-
-  await page.keyboard.press("Escape");
+  // The write jumps to its first change (DESIGN.md → What changed → Jumping): the table takes focus, no motion.
   await expect(table).toBeFocused();
+  await expect(order5006(page)).toBeInViewport();
+  await expect(order5006(page)).toHaveAttribute("data-flash", "static");
+
+  // The only change, so ] wraps back onto it.
   await press(page, { code: "BracketRight", key: "ψ" });
   await expect(page.getByRole("navigation", { name: "Tables" }).getByRole("button", { name: /^Orders/ })).toHaveAttribute("aria-current", "true");
   await expect(table).toBeFocused();

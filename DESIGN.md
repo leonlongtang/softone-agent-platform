@@ -196,11 +196,12 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
   - updated rows: `~` in the gutter, with only the changed cells on `--warn-soft` in `--warn`;
   - deleted rows: stay at their position, struck through on `--bad-soft`, with a `−` in the gutter.
 - **Counts:** shown on the sidebar badges and in the table bar.
-- **Jumping:** the operator moves only by clicking a change chip, in the turn or on the folded bar. A click:
+- **Ruler:** like VS Code's overview ruler, a tick over the table's scrollbar track for each changed row at its place in the table, in `--ok` / `--warn` / `--bad`. It's decorative (`aria-hidden`) and lets clicks through, so clicking the track by a tick scrolls there.
+- **Jumping:** a turn with changes jumps to its first change by itself, as if the first chip were clicked; after that the operator moves by clicking a change chip, in the turn or on the folded bar. A jump:
   - selects the table, clears the filter and the changed-only box, resets the sort to key order, and folds the chat;
   - scrolls the first changed row to a third of the way down the viewport;
   - flashes it for 1.6s (a static outline under reduced motion; timing in Motion).
-- **No auto-jump to a table** after a turn. The audit marked it "Revisit"; it's dropped because it moves the operator without asking.
+- **Auto-jump after a write** (2026-11-06, operator's call): the audit's "Revisit" was first dropped for moving the operator without asking; the operator wants to land on what the agent changed.
 
 ### Flows
 
@@ -230,7 +231,7 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 - **Kept, as the audit asked:** the runtime switch and the backup explanation move to the runtime menu, the Tools tab becomes the Agent tools dialog, and the example prompts become the empty state. New chat and Reset get confirmations.
 - **Kept, with this section's look:** the approval card, the trace and the name labels.
 - **Changed:** the diff box shrinks to change chips; status pills come from a value map; tab change counts move to the sidebar badges.
-- **Dropped:** auto-jump and the header subtitle.
+- **Dropped:** the header subtitle. (Auto-jump was dropped too, then brought back after writes: see What changed.)
 - **Name lookup:** stays in the client, over the whole tables (see Large tables).
 
 **Keyboard shortcuts and focus order:** see Keyboard.
