@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from contextlib import asynccontextmanager, closing
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -12,11 +12,10 @@ pytest.importorskip("langgraph")
 
 from starlette.testclient import TestClient
 
-from agent_platform.gate import WriteGate
-from agent_platform.graph import GATE_KEY
 from agent_platform.web.db import diff, snapshot
 from agent_platform.web.server import create_app
 from mock_db.create_and_seed import build_db
+from tests.fakes import FakeOrchestrator
 
 
 def test_turn_diff_reports_inserts_updates_deletes(tmp_path: Path) -> None:
@@ -42,22 +41,6 @@ def test_no_changes_is_an_empty_diff(tmp_path: Path) -> None:
     db = tmp_path / "mock.db"
     build_db(db)
     assert diff(snapshot(db), snapshot(db)) == []
-
-
-class FakeOrchestrator:
-    """Blocks create_order until "yes", then writes it to the DB, like a real agent behind the gate."""
-
-    def __init__(self, db: Path) -> None:
-        self.db = db
-
-    async def ainvoke(self, state: dict) -> dict:
-        gate = state["artifacts"].setdefault(GATE_KEY, WriteGate())
-        gate.start_turn(state["user_text"])
-        if gate.check("create_order", {"customer_id": 47}) is None:
-            with closing(sqlite3.connect(self.db)) as conn, conn:  # commit, then close (Windows locks open files)
-                conn.execute("INSERT INTO orders (id, customer_id, status, total) VALUES (5006, 47, 'Draft', 0)")
-        response = f"done\n\n{gate.pending_summary()}" if gate.blocked else "done"  # as graph.run_agent_node does
-        return {**state, "route": "sales", "runtime": "fake", "response": response}
 
 
 def test_api_turns_report_trace_pending_and_diff(tmp_path: Path) -> None:

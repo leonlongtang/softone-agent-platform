@@ -4,7 +4,7 @@ import { type ColumnDef, tableFeatures, useTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useMemo, useRef } from "react";
 import type { Row, RowChange } from "@/lib/changes";
-import { cellKind, cellText, isGreek, labelFor, type NameOf, type Sort, statusToken } from "@/lib/format";
+import { cellKind, cellText, changeMark, changeNote, isGreek, labelFor, type NameOf, type Sort, statusToken } from "@/lib/format";
 
 type Item = { row: Row; change?: RowChange };
 
@@ -12,6 +12,10 @@ const features = tableFeatures({});
 const ROW = 32, GUTTER = 28; // ROW mirrors --row: the virtualizer needs a number
 const alignRight = (column: string) => ["money", "int"].includes(cellKind(column));
 const PILL = { ok: "text-ok", warn: "text-warn", bad: "text-bad" } as const;
+// Turn changes (DESIGN.md → What changed): inserted rows tinted ok, deleted struck through on bad, updated rows
+// tint only their changed cells. Tints are opaque, so pinned cells take them instead of --panel.
+const TINT = { insert: "bg-ok-soft", update: "", delete: "bg-bad-soft" } as const;
+const MARK_TONE = { insert: "text-ok", update: "text-warn", delete: "text-bad" } as const;
 
 // ponytail: column widths from the longest displayed text × an average glyph width, not measured.
 // Fixed widths keep columns still while rows scroll in and out; measure with canvas if they clip badly.
@@ -47,8 +51,9 @@ function Cell({ column, value, nameOf }: { column: string; value: unknown; nameO
  * One table, read-only: sticky header, gutter and key columns pinned left, only on-screen rows in the DOM.
  * `rows` is the whole table (column widths); `items` is what shows, already filtered and sorted.
  */
-export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort }: {
+export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, changed }: {
   name: string; rows: Row[]; items: Item[]; pk: string[]; nameOf: NameOf; sort: Sort; onSort: (column: string) => void;
+  changed: number; // rows this turn changed in the whole table
 }) {
   const columns = useMemo(() => {
     const keys = Object.keys(rows[0] ?? Object.fromEntries(pk.map((k) => [k, null])));
@@ -85,7 +90,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort }:
     <div
       ref={scrollRef}
       role="region"
-      aria-label={`${labelFor(name)} table, ${n.toLocaleString("en-GB")} rows`}
+      aria-label={`${labelFor(name)} table, ${n.toLocaleString("en-GB")} rows${changed ? `, ${changed} changed this turn` : ""}`}
       tabIndex={0}
       className="h-full overflow-auto bg-panel focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
     >
@@ -128,18 +133,22 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort }:
           {top > 0 && <tr aria-hidden style={{ height: top }} />}
           {items.map((v) => {
             const row = tableRowsModel[v.index];
+            const change = row.original.change, tint = change ? TINT[change.op] : "";
             return (
-              <tr key={row.id} aria-rowindex={v.index + 2} className="h-8">
-                <td aria-hidden className="sticky left-0 z-20 border-b border-line bg-panel p-0" />
+              <tr key={row.id} aria-rowindex={v.index + 2} data-change={change?.op} className="h-8">
+                <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>
+                  {change && <><span aria-hidden>{changeMark(change)}</span><span className="sr-only">{changeNote(change)}</span></>}
+                </td>
                 {row.getAllCells().map((cell, i) => {
                   const k = cell.column.id, value = cell.getValue(), text = cellText(k, value, nameOf);
                   const p = columns[i].meta.pinned;
+                  const bg = change?.op === "update" && change.changed.includes(k) ? "bg-warn-soft text-warn" : tint || (p === undefined ? "" : "bg-panel");
                   return (
                     <td
                       key={cell.id}
                       lang={isGreek(text) ? "el" : undefined}
                       style={pinStyle(p)}
-                      className={`truncate border-b border-line px-3 ${p === undefined ? "" : "z-20 bg-panel"} ${alignRight(k) ? "text-right" : ""}`}
+                      className={`truncate border-b border-line px-3 ${p === undefined ? "" : "z-20"} ${bg} ${change?.op === "delete" ? "line-through" : ""} ${alignRight(k) ? "text-right" : ""}`}
                     >
                       <Cell column={k} value={value} nameOf={nameOf} />
                     </td>

@@ -1,6 +1,6 @@
 // Display rules carried over from the old UI (DESIGN.md → Page hierarchy cell rules, Large tables → Filter).
 // Plain TypeScript, no React or DOM.
-import { compareKeys, type DiffEntry, type Row, turnChanges } from "./changes.ts";
+import { compareKeys, type DiffEntry, type Row, type RowChange, type TableChanges, turnChanges } from "./changes.ts";
 
 const MONEY = new Intl.NumberFormat("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -186,6 +186,19 @@ export type Decision = Exclude<TurnKind, "ask">;
 export const isFailedTurn = (r: TurnResponse | null) => !r || (!!r.error && !r.response);
 
 const WORDS = { insert: "added", update: "changed", delete: "deleted" } as const;
+const MARKS = { insert: "+", update: "~", delete: "−" } as const;
+
+/** One chip per changed table: `Orders +1`, `Items ~2`, `Order lines −2` (DESIGN.md → A turn in the log). */
+export const changeChips = (changes: Record<string, TableChanges>) =>
+  Object.entries(changes).map(([t, { counts }]) =>
+    [labelFor(t), ...(["insert", "update", "delete"] as const).filter((op) => counts[op]).map((op) => `${MARKS[op]}${counts[op]}`)].join(" "));
+
+/** A changed row's gutter mark, `aria-hidden`; `changeNote` is what readers hear instead. */
+export const changeMark = (c: RowChange) => MARKS[c.op];
+
+/** A changed row's visually hidden text: "added", "changed: price", "deleted" (DESIGN.md → Accessibility → The table). */
+export const changeNote = (c: RowChange) =>
+  c.op === "update" ? `changed: ${c.changed.map((k) => labelFor(k).toLowerCase()).join(", ")}` : WORDS[c.op];
 
 /**
  * What the status line says when a turn ends (DESIGN.md → Accessibility → Announcements); "" on a pending write,

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
-  applyView, cellKind, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, nextSort, pendingArgs, statusToken, turnError, turnSentence,
+  applyView, cellKind, changeChips, changeNote, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, nextSort, pendingArgs, statusToken, turnError, turnSentence,
   type Sort, type TraceCall,
 } from "./format.ts";
 
@@ -151,4 +151,19 @@ test("the status line's sentence after a turn (DESIGN.md → Accessibility → A
   assert.equal(turnError("ollama", down), "Start Ollama, then retry, or switch the runtime to Claude (paid).");
   assert.equal(turnError("claude", down), "The turn failed. Nothing was written.");
   assert.equal(turnError("ollama", null), "Can't reach the API.");
+});
+
+test("change chips and the row's hidden change text", () => {
+  const diff: DiffEntry[] = [
+    { table: "orders", op: "insert", key: [5006], before: null, after: null, changed: [] },
+    { table: "items", op: "update", key: [1], before: null, after: null, changed: ["stock"] },
+    { table: "items", op: "update", key: [2], before: null, after: null, changed: ["stock"] },
+    { table: "order_items", op: "delete", key: [1, 2], before: null, after: null, changed: [] },
+    { table: "order_items", op: "delete", key: [1, 3], before: null, after: null, changed: [] },
+  ];
+  assert.deepEqual(changeChips(turnChanges(diff)), ["Orders +1", "Items ~2", "Order lines −2"]);
+  assert.deepEqual(changeChips(turnChanges(null)), []);
+  assert.equal(changeNote({ op: "update", changed: ["price", "due_date"] }), "changed: price, due date");
+  assert.equal(changeNote({ op: "insert", changed: ["id"] }), "added");
+  assert.equal(changeNote({ op: "delete", changed: [] }), "deleted");
 });

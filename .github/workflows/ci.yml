@@ -33,3 +33,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      # Playwright against `next start` and the fake API (tests/e2e_server.py, started by uv). Chromium only.
+      - uses: astral-sh/setup-uv@v6
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test

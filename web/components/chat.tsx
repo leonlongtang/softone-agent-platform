@@ -3,8 +3,9 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { type DiffEntry, turnChanges } from "@/lib/changes";
 import {
-  type Decision, foldReads, formatArgs, isFailedTurn, isGreek, labelFor, type NameOf, pendingArgs, TRACE_BADGE,
+  changeChips, type Decision, foldReads, formatArgs, isFailedTurn, isGreek, labelFor, type NameOf, pendingArgs, TRACE_BADGE,
   type TraceCall, turnError, type TurnKind, type TurnResponse, turnSentence,
 } from "@/lib/format";
 
@@ -42,6 +43,19 @@ async function postTurn(text: string): Promise<TurnResponse | null> {
   } catch {
     return null;
   }
+}
+
+/** Display only for now; ticket 08 makes each chip jump to its table's first change. */
+function Chips({ diff }: { diff: DiffEntry[] | null | undefined }) {
+  const chips = changeChips(turnChanges(diff));
+  if (!chips.length) return null;
+  return (
+    <ul aria-label="Changes this turn" className="flex flex-wrap gap-1.5">
+      {chips.map((c) => (
+        <li key={c} className="rounded-full border border-line bg-raised px-2.5 py-0.5 text-sm tabular-nums">{c}</li>
+      ))}
+    </ul>
+  );
 }
 
 function Markdown({ text }: { text: string }) {
@@ -91,7 +105,9 @@ function ErrorLine({ res, runtime, onRetry }: { res: TurnResponse | null; runtim
  * The floating chat over the table (DESIGN.md → Floating chat, A turn in the log): clear glass frame,
  * solid text blocks, the turn loop against `POST /api/turn`, and the one `role="status"` line.
  */
-export function Chat({ nameOf, runtime, disabled }: { nameOf: NameOf; runtime: string; disabled: boolean }) {
+export function Chat({ nameOf, runtime, disabled, onTurn }: {
+  nameOf: NameOf; runtime: string; disabled: boolean; onTurn: (res: TurnResponse) => void;
+}) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [draft, setDraft] = useState("");
   const [open, setOpen] = useState(true);
@@ -126,6 +142,8 @@ export function Chat({ nameOf, runtime, disabled }: { nameOf: NameOf; runtime: s
     const res = await postTurn(text);
     setBusy(false);
     setStatus(turnSentence(kind, res));
+    if (res) onTurn(res);
+    if (res?.diff?.length && !res.pending) setOpen(false); // auto-fold so the changed rows show
     if (res?.pending) {
       setOpen(true);
       focusNext.current = "card";
@@ -174,10 +192,13 @@ export function Chat({ nameOf, runtime, disabled }: { nameOf: NameOf; runtime: s
           ))}
         </div>
       )}
-      <p role="status" className={status ? `${block} py-1 text-sm text-muted-foreground` : "sr-only"}>
-        {status}
-        {busy && <Seconds />}
-      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p role="status" className={status ? `${block} flex-1 py-1 text-sm text-muted-foreground` : "sr-only"}>
+          {status}
+          {busy && <Seconds />}
+        </p>
+        {!open && !busy && <Chips diff={last?.res?.diff} />}
+      </div>
       <form
         className="flex items-end gap-2"
         onSubmit={(ev) => {
@@ -250,6 +271,7 @@ function Turn({ entry: e, next, isLast, busy, nameOf, runtime, cardRef, onDecide
           {e.kind === "reject" && e.state === "done" && !r.diff?.length && <p className={block}>Okay, nothing was written.</p>}
           {rest.length > 0 && <div className={block}><Calls calls={rest} nameOf={nameOf} /></div>}
           {r.response && <div className={block}><Markdown text={r.response} /></div>}
+          {!r.pending && <Chips diff={r.diff} />}
           {blocked.length > 0 && (
             <div
               ref={isLast ? cardRef : undefined}
