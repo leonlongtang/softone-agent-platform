@@ -140,7 +140,7 @@ Decided 2026-11-05 (ticket 05), by the user. The user compared three layouts on 
 
 - **Top bar (48px):** brand placeholder on the left. On the right, the **runtime menu** holds everything operators rarely touch:
   - the runtime switch (Ollama local, free / Claude, paid per turn), with a confirmation and a visible line explaining the Claude backup (the audit's badge explanation, no longer hover-only);
-  - New chat, Agent tools…, the light/dark toggle, and Reset demo data… (in `--bad`).
+  - New chat, Agent tools…, Keyboard shortcuts…, the light/dark toggle, and Reset demo data… (in `--bad`).
 - **Sidebar (220px), "Tables":** Customers, Items, Orders, Order lines, Invoices, Payments (operator labels; the SQL name shows in the table bar).
   - Each item shows its row count and, when the last turn changed it, a `--warn` badge with the number of changed rows.
   - Below the list: an **Only rows changed this turn** checkbox, disabled when there are no turn changes.
@@ -231,7 +231,7 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 - **Dropped:** auto-jump and the header subtitle.
 - **Name lookup:** stays in the client, over the whole tables (see Large tables).
 
-**Not settled here:** keyboard shortcuts and focus order between the chat and the table (map fog).
+**Keyboard shortcuts and focus order:** see Keyboard.
 
 ## Large tables
 
@@ -341,6 +341,47 @@ Decided 2026-11-06 (ticket 07), by the user, using the `emil-design-eng` skill. 
 ### Reduced motion
 
 `prefers-reduced-motion: reduce` means fewer and gentler, not zero: translate, scale, the spinner and smooth scrolling go. Opacity fades stay, at `--dur-fast` (150ms) or less, so it's still clear that a sheet or dialog opened.
+
+## Keyboard
+
+Decided 2026-11-06 (ticket 12), with the user. Questions and mockups: artifact "Operator Keyboard Questions" (https://claude.ai/artifact/XEMh46LALRTfqXCnJ7CgGj).
+
+### Keys
+
+- **Kind:** a few punctuation keys, matched by physical key (`event.code`) so they work on the Greek layout too. They're active only when focus isn't in a text field. The one chord is Ctrl/Cmd+F.
+
+| Key | Where | Does |
+|---|---|---|
+| `/` | outside text fields | opens the chat if it's folded and focuses the composer (the draft is kept) |
+| `Esc` | composer | folds the chat and focuses the table; does nothing while a pending write waits |
+| Ctrl/Cmd+F | anywhere but the composer | focuses the filter and selects its text; pressed again in the filter, it falls through to browser find (which can't see virtualised rows) |
+| `Esc` | filter | first clears it, second focuses the table |
+| `]` / `[` | outside text fields | next / previous changed row across tables, in chip order, wrapping around; does exactly what a chip click does, but with a static outline instead of the flash (keyboard actions don't animate); does nothing without turn changes |
+| `↑` `↓` `Home` `End` | table list (sidebar, or the picker under 1024) | move and select a table; no global table keys |
+| `?` | outside text fields | opens the Keyboard shortcuts dialog |
+
+- **No toggle key** for the chat: the "Hide chat / Chat (N)" button does it.
+- **Approve and Reject have no shortcut.** When the approval card appears, focus goes to the card (not to Approve), so a stray Enter does nothing. Tab reaches Approve, then Reject; Enter/Space presses the focused button. A write must be a deliberate press on a visible button.
+
+### Focus
+
+- **Tab order** (chat last in the DOM, though it floats on top):
+  1. a "Skip to chat" link, visible on focus;
+  2. the runtime menu;
+  3. the table list, Only rows changed this turn, Agent tools;
+  4. the filter;
+  5. the table;
+  6. the chat: chips, Hide chat, the composer.
+- **The table is one focusable scroll region** (`tabindex="0"`), not a cell grid: arrows, PgUp/PgDn and Home/End scroll it. Nothing in it is editable. A chip, row-link or `]` jump moves focus here.
+- **After a turn,** focus stays where it was (the composer keeps it if it had it).
+  - On a pending write, focus moves to the approval card. The card is announced once: "Pending write: needs your approval".
+  - After Approve/Reject, focus goes to the composer, which unlocks.
+  - Under `pointer: coarse` nothing is ever focused automatically, so the on-screen keyboard never opens by itself.
+
+### Discoverability
+
+- `?` and a **Keyboard shortcuts…** entry in the runtime menu open the same static dialog: the keys table above, plus "Approve and Reject have no shortcut. Tab to the button and press Enter."
+- Tooltips name the key: the composer ("Ask the agent `/`"), the change chips ("Next change `]`") and the filter (Ctrl/Cmd+F).
 
 ## Testing
 
