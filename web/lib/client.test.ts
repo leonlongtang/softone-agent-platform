@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { tableRows, turnChanges, type DiffEntry } from "./changes.ts";
 import {
-  foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, pendingArgs, statusToken,
+  cellKind, cellText, foldReads, formatArgs, formatDate, formatMoney, isGreek, labelFor, matches, nameIndex, pendingArgs, statusToken,
   type TraceCall,
 } from "./format.ts";
 
@@ -85,4 +85,20 @@ test("Greek text, status tokens, names, args, read folding", () => {
   ];
   assert.deepEqual(foldReads(trace, true), { reads: [trace[0]], rest: [trace[2]] });
   assert.deepEqual(foldReads(trace, false).rest, [trace[1], trace[2]]);
+});
+
+test("cell rules: kind and displayed text", () => {
+  const nameOf = nameIndex({ customers: [{ trdr: 47, name: "Soft One Technologies S.A." }] });
+  assert.equal(cellKind("total"), "money");
+  assert.equal(cellKind("payment_date"), "date");
+  assert.equal(cellKind("status"), "status");
+  assert.equal(cellKind("customer_id"), "id");
+  assert.equal(cellKind("code"), "id");
+  assert.equal(cellKind("quantity"), "int");
+  assert.equal(cellKind("name"), "text");
+  assert.equal(cellText("total", 1225, nameOf), "1.225,00");
+  assert.equal(cellText("created_at", "2026-10-09T12:00:00+00:00", nameOf), "09 Oct 2026");
+  assert.equal(cellText("customer_id", 47, nameOf), "47 · Soft One Technologies S.A.");
+  assert.equal(cellText("customer_id", 999, nameOf), "999");
+  assert.equal(cellText("address", null, nameOf), "—");
 });

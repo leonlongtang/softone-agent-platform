@@ -126,3 +126,21 @@ export const matches = (text: string, query: string) => normalise(text).includes
 
 /** Text with any Greek letter gets `lang="el"` (DESIGN.md → Accessibility → The table). */
 export const isGreek = (s: string) => /[Ͱ-Ͽ]/.test(s);
+
+const ID_COLUMNS = new Set(["trdr", "id", "order_id", "invoice_id", "code", "afm", ...Object.keys(FOREIGN)]);
+const INT_COLUMNS = new Set(["stock", "reserved", "quantity", "qty"]);
+export type CellKind = "money" | "date" | "status" | "id" | "int" | "text";
+
+/** How a column renders (DESIGN.md → Page hierarchy, cell rules). */
+export const cellKind = (column: string): CellKind =>
+  MONEY_COLUMNS.has(column) ? "money" : DATE_COLUMNS.has(column) ? "date" : column === "status" ? "status"
+    : ID_COLUMNS.has(column) ? "id" : INT_COLUMNS.has(column) ? "int" : "text";
+
+/** A cell's text as displayed; the filter matches on this too. Nulls are `—`. */
+export function cellText(column: string, value: unknown, nameOf: NameOf): string {
+  if (value == null) return "—";
+  const kind = cellKind(column);
+  if (kind === "money" && typeof value === "number") return formatMoney(value);
+  if (kind === "date") return formatDate(String(value));
+  return withName(nameOf, column, value);
+}
