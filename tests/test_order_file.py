@@ -193,3 +193,34 @@ def test_bad_columns_are_refused(columns):
 
 def test_columns_without_qty_reports_missing():
     assert parse(b"a,b\nx,1\n", "o.csv", columns={"item": 0}).missing == ["qty"]
+
+
+@pytest.mark.parametrize("fmt", ["csv", "xlsx"])
+def test_reading_stops_at_the_sheet_row_cap(fmt):
+    # 3 data rows, then a blank row and junk to past the cap: refused at read time, before the junk is all held.
+    rows = [["Item", "Qty"], ["x", 1], ["y", 2], ["z", 3], []] + [["junk"]] * order_file.MAX_SHEET_ROWS
+    data = _rows_to_csv(rows) if fmt == "csv" else xlsx(("S", rows))
+    with pytest.raises(OrderFileError, match="500"):
+        parse(data, f"o.{fmt}")
+    assert len(summary(parse(_rows_to_csv(rows[: order_file.MAX_SHEET_ROWS]), "o.csv"))) == 3  # at the cap: read
+
+
+def _rows_to_csv(rows):
+    return "\n".join(",".join(map(str, r)) for r in rows).encode()
+
+
+@pytest.mark.parametrize(("data", "name"), [(b"", "o.csv"), (b"\n ;\n", "o.csv"), (xlsx(("S", [])), "o.xlsx")])
+def test_empty_file_is_refused(data, name):
+    with pytest.raises(OrderFileError, match="This file is empty"):
+        parse(data, name)
+
+
+@pytest.mark.parametrize("text", ["Item,Qty\n", "Item,Qty\n\nx,1\n", "Item,Qty\nTotal,0\n"])
+def test_header_without_rows_under_it_is_refused(text):
+    with pytest.raises(OrderFileError, match="no order rows right under the header"):
+        parse(text.encode(), "o.csv")
+
+
+def test_picked_columns_with_no_rows_are_refused():
+    with pytest.raises(OrderFileError, match="Pick the columns again"):
+        parse(b"a,b\nx,y\n", "o.csv", columns={"item": 0, "qty": 1})

@@ -8,15 +8,23 @@ from __future__ import annotations
 
 import csv
 import io
+import itertools
 import re
 import unicodedata
 import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import openpyxl
 
 MAX_BYTES = 2 * 1024 * 1024
 MAX_ROWS = 500
+# Rows read from the sheet at most: data rows plus room for a preamble, total and blank rows. Reading stops
+# here, so a small file holding a huge sheet never sits in memory whole (Decision 16).
+# ponytail: counts empty rows too, so a sheet formatted far below its data is refused. Skip trailing empty
+# rows while counting if a real order trips it.
+MAX_SHEET_ROWS = 2 * MAX_ROWS
+TOO_MANY_ROWS = f"This file has over {MAX_ROWS} rows. Split the order into smaller files."
 HEADER_SEARCH_ROWS = 10
 PREVIEW_ROWS = 10
 REQUIRED = ("item", "qty")
@@ -79,6 +87,8 @@ def parse(data: bytes, filename: str, columns: dict[str, int] | None = None) -> 
         sheets, table = [], _read_csv(data)
     else:
         raise OrderFileError(NOT_AN_ORDER_FILE)
+    if not any(_cell_text(c) for row in table for c in row):
+        raise OrderFileError("This file is empty. Attach the order file that holds the rows.")
 
     if columns is not None:
         _check_columns(columns, table)
@@ -93,19 +103,38 @@ def parse(data: bytes, filename: str, columns: dict[str, int] | None = None) -> 
         preview = [[_cell_text(c) for c in row] for row in table[:PREVIEW_ROWS]]
         return Parsed([], header_row if found else None, sheets, found, missing, preview)
     rows = _rows(table, data_start, found)
+    if not rows and columns is not None:
+        raise OrderFileError("No row has an item and a quantity in these columns. Pick the columns again.")
+    if not rows:
+        raise OrderFileError(
+            "There are no order rows right under the header. Add them, or remove the blank rows above them, "
+            "and attach the file again."
+        )
     return Parsed(rows, header_row, sheets, found, hints=_hints(table[: max(data_start - 1, 0)]))
+
+
+def _capped(rows: Iterable) -> list[list]:
+    """The first `MAX_SHEET_ROWS` rows as lists; refused if there are more."""
+    table = [list(row) for row in itertools.islice(rows, MAX_SHEET_ROWS + 1)]
+    if len(table) > MAX_SHEET_ROWS:
+        raise OrderFileError(TOO_MANY_ROWS)
+    return table
 
 
 def _read_csv(data: bytes) -> list[list]:
     text = _decode(data)
-    lines = text.splitlines()  # handles \r\n, \n and old-Mac \r alike
+
+    def lines() -> io.StringIO:  # newline=None reads \r\n, \n and old-Mac \r alike, lazily
+        return io.StringIO(text, newline=None)
+
     # The separator on the most of the first lines; csv.Sniffer gives up (or picks the decimal comma) when a
     # preamble line has fewer fields than the table. Ties go to ",".
     # ponytail: counts lines holding the character, not consistent field counts, so a ";" file whose first 20
     # lines all hold a comma too reads as comma-separated. Tie-break on equal field counts per line if that shows up.
-    delimiter = max(",;\t", key=lambda d: sum(d in line for line in lines[:20]))
+    head = list(itertools.islice(lines(), 20))
+    delimiter = max(",;\t", key=lambda d: sum(d in line for line in head))
     try:
-        return list(csv.reader(lines, delimiter=delimiter))
+        return _capped(csv.reader(lines(), delimiter=delimiter))
     except csv.Error as e:
         raise OrderFileError(NOT_AN_ORDER_FILE) from e
 
@@ -133,7 +162,7 @@ def _read_xlsx(data: bytes) -> tuple[list[str], list[list]]:
         raise OrderFileError(NOT_AN_ORDER_FILE) from e
     try:
         sheets = wb.sheetnames
-        return sheets, [list(row) for row in wb[sheets[0]].iter_rows(values_only=True)]
+        return sheets, _capped(wb[sheets[0]].iter_rows(values_only=True))
     finally:
         wb.close()
 
@@ -216,7 +245,7 @@ def _rows(table: list[list], start: int, columns: dict[str, int]) -> list[Row]:
         if _TOTAL_ROW.search(_norm(next(c for c in cells if c))):
             continue
         if len(rows) >= MAX_ROWS:
-            raise OrderFileError(f"This file has over {MAX_ROWS} rows. Split the order into smaller files.")
+            raise OrderFileError(TOO_MANY_ROWS)
         row = table[index]
         qty = _number(_get(row, columns["qty"]))
         whole = qty is not None and qty.is_integer() and qty > 0

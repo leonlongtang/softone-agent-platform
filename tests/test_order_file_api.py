@@ -201,3 +201,19 @@ def test_a_refused_approve_keeps_the_fixes_unproposed(client, db_path):
     card = client.get("/api/order-file").json()  # the web reloads the card from here
     assert not card["proposed"] and card["can_propose"]  # stale until a fix matches again
     assert states(client.patch("/api/order-file", json={"row": 3, "qty": 3}).json()) == ["short"]
+
+
+def test_upload_body_is_read_only_to_just_past_the_limit():
+    from starlette.requests import Request
+
+    from agent_platform.web.server import capped_body
+
+    sent = 0
+
+    async def receive():
+        nonlocal sent
+        sent += 1
+        return {"type": "http.request", "body": b"x" * 1000, "more_body": True}  # never ends
+
+    body = asyncio.run(capped_body(Request({"type": "http", "method": "POST", "headers": []}, receive), limit=2500))
+    assert (len(body), sent) == (2501, 3)

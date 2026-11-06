@@ -17,11 +17,24 @@ from starlette.routing import Route
 from agent_platform.chat import Chat, ChatUnavailable, Conflict
 from agent_platform.gate import WRITE_TOOLS
 from agent_platform.graph import escalation_enabled, open_orchestrator
-from agent_platform.order_file import OrderFileError
+from agent_platform.order_file import MAX_BYTES, OrderFileError
 from agent_platform.order_match import MatchError, open_mcp
 from agent_platform.specs import SPECS
 from agent_platform.web import db
 from config import load_config
+
+
+async def capped_body(request: Request, limit: int = MAX_BYTES) -> bytes:
+    """The body, read only up to one byte past `limit`, so a huge upload is never held whole (Decision 16).
+
+    The parser refuses anything over `limit`, so the cut-off body still gets the "over 2 MB" message.
+    """
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > limit:
+            break
+    return bytes(body[: limit + 1])
 
 
 async def _tool_catalog() -> dict[str, list[dict[str, Any]]]:
@@ -111,7 +124,7 @@ def create_app(
         if request.method == "GET":  # the open card, e.g. after a page reload or an Approve SoftOne refused
             return JSONResponse(chat.order_card)
         if request.method == "POST":  # raw body, not multipart: no python-multipart dependency
-            return await card(chat.attach(await request.body(), request.query_params.get("name", "")))
+            return await card(chat.attach(await capped_body(request), request.query_params.get("name", "")))
         if request.method == "DELETE":
             return await card(chat.discard())
         change = await request.json()
