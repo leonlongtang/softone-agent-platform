@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import secrets
 import sqlite3
 from dataclasses import dataclass
@@ -421,12 +422,174 @@ def seed(conn: sqlite3.Connection) -> SeedResult:
         ],
     )
 
+    seed_bulk(conn, now)
+
     return SeedResult(
         db_path=DEFAULT_DB_PATH,
         account=account,
         temporary_client_id=tmp_client,
         final_client_id=final_client,
     )
+
+
+BULK_SEED = 20261105  # fixed, so every Reset DB gives identical bulk rows
+
+_GR_SURNAMES = ["Παπαδόπουλος", "Γεωργίου", "Νικολάου", "Οικονόμου", "Αντωνίου", "Δημητρίου", "Ιωάννου",
+                "Κωνσταντίνου", "Μιχαηλίδης", "Βασιλείου", "Αθανασίου", "Χριστοδούλου", "Καραγιάννης",
+                "Σταματόπουλος", "Πετρίδης", "Λαμπράκης", "Ζαχαρίου", "Μαυρίδης", "Τσακίρης", "Φωτίου"]
+_GR_FORMS = ["Α.Ε.", "Ε.Π.Ε.", "Ο.Ε.", "& ΣΙΑ Ο.Ε.", "Ι.Κ.Ε."]
+_GR_STREETS = ["Λεωφ. Κηφισίας", "Ερμού", "Πατησίων", "Λεωφ. Συγγρού", "Αγίου Δημητρίου", "Τσιμισκή",
+               "Εγνατίας", "Λεωφ. Βουλιαγμένης", "Ακαδημίας", "Μητροπόλεως"]
+_GR_TOWNS = ["Μαρούσι", "Αθήνα", "Πειραιάς", "Θεσσαλονίκη", "Πάτρα", "Ηράκλειο", "Λάρισα", "Βόλος",
+             "Χαλάνδρι", "Γλυφάδα"]
+_EN_FIRST = ["Aegean", "Olympus", "Hellas", "Ionian", "Attica", "Cyclades", "Delta", "Pindos", "Crete",
+             "Macedonia", "Poseidon", "Athena", "Kronos", "Meteora", "Parnassus"]
+_EN_SECOND = ["Trading", "Logistics", "Retail", "Systems", "Supplies", "Foods", "Electronics", "Office",
+              "Hotels", "Pharma", "Marine", "Builders"]
+_EN_FORMS = ["SA", "Ltd", "Group", "Co."]
+_EN_STREETS = ["Panepistimiou", "Stadiou", "Vas. Sofias", "Kifisias Ave", "Syngrou Ave", "Mesogeion",
+               "Egnatia", "Tsimiski", "Akti Miaouli", "Alexandras Ave"]
+_EN_TOWNS = ["Athens", "Piraeus", "Thessaloniki", "Patras", "Heraklion", "Larissa", "Volos", "Kalamata"]
+# (code word, English name, Greek name, price range in whole euros)
+_ITEM_KINDS = [
+    ("CABLE", "USB-C Cable", "Καλώδιο USB-C", (5, 25)),
+    ("SSD", "SSD Drive", "Δίσκος SSD", (40, 220)),
+    ("RAM", "Memory Module", "Μνήμη RAM", (30, 180)),
+    ("DOCK", "Docking Station", "Σταθμός σύνδεσης", (90, 280)),
+    ("PRNT", "Laser Printer", "Εκτυπωτής laser", (120, 650)),
+    ("TONER", "Toner Cartridge", "Τόνερ εκτυπωτή", (25, 110)),
+    ("ROUTER", "Wi-Fi Router", "Δρομολογητής Wi-Fi", (45, 240)),
+    ("CAM", "Web Camera", "Κάμερα web", (30, 150)),
+    ("CHAIR", "Office Chair", "Καρέκλα γραφείου", (80, 450)),
+    ("DESK", "Standing Desk", "Γραφείο ορθίας", (200, 900)),
+    ("UPS", "UPS Unit", "Τροφοδοτικό UPS", (70, 400)),
+    ("TAB", "Tablet", "Ταμπλέτα", (180, 950)),
+    ("PHONE", "Smartphone", "Κινητό τηλέφωνο", (150, 1200)),
+    ("SPKR", "Bluetooth Speaker", "Ηχείο Bluetooth", (20, 160)),
+    ("HUB", "USB Hub", "Διανομέας USB", (10, 60)),
+]
+
+
+def seed_bulk(conn: sqlite3.Connection, now: datetime) -> None:
+    """Operator-scale demo rows (DESIGN.md -> Demo data), after the originals and never touching them."""
+    rng = random.Random(BULK_SEED)
+    anchor = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def days_ago(lo: int, hi: int) -> datetime:
+        return anchor - timedelta(days=rng.randint(lo, hi), seconds=rng.randint(1, 86_399))
+
+    # Customers 1000-1199: about half Greek; cusextra row for each, like the originals.
+    customers = []
+    for trdr in range(1000, 1200):
+        n = rng.randint(1, 250)
+        if rng.random() < 0.5:
+            name = f"{rng.choice(_GR_SURNAMES)} {rng.choice(_GR_FORMS)}"
+            address, email = f"{rng.choice(_GR_STREETS)} {n}, {rng.choice(_GR_TOWNS)}", None
+        else:
+            first, second = rng.choice(_EN_FIRST), rng.choice(_EN_SECOND)
+            name = f"{first} {second} {rng.choice(_EN_FORMS)}"
+            address = f"{n} {rng.choice(_EN_STREETS)}, {rng.choice(_EN_TOWNS)}"
+            email = f"info@{first.lower()}-{second.lower()}.gr"
+        customers.append((trdr, str(trdr), name, f"{rng.randint(10**8, 10**9 - 1)}", email,
+                          f"+30210{rng.randint(10**6, 10**7 - 1)}", address, 0.0, days_ago(400, 1500).isoformat()))
+    conn.executemany(
+        "INSERT INTO customers(trdr, code, name, afm, email, phone, address, balance, created_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?)",
+        customers,
+    )
+    conn.executemany("INSERT INTO cusextra(trdr, varchar01, varchar02) VALUES (?,?,?)",
+                     [(c[0], None, None) for c in customers])
+
+    # Items 2001-2300: about a fifth Greek. Stock and reserved are filled in once the orders exist.
+    items: dict[int, dict] = {}
+    counters: dict[str, int] = {}
+    for item_id in range(2001, 2301):
+        word, en, gr, (lo, hi) = rng.choice(_ITEM_KINDS)
+        counters[word] = counters.get(word, 0) + 1
+        num = counters[word]
+        items[item_id] = {"code": f"{word}-{num:02d}", "name": f"{gr if rng.random() < 0.2 else en} {num}",
+                          "price": rng.randint(lo, hi), "reserved": 0,
+                          "created_at": days_ago(400, 1500).isoformat()}
+
+    # Skew: 20 big customers carry most orders; item popularity falls off by rank.
+    trdrs = [c[0] for c in customers]
+    big = set(rng.sample(trdrs, 20))
+    customer_w = [30 if t in big else 1 for t in trdrs]
+    item_ids = list(items)
+    rng.shuffle(item_ids)
+    item_w = [1 / (rank + 1) ** 0.8 for rank in range(len(item_ids))]
+
+    orders, lines = [], []
+    for order_id in range(10001, 11001):
+        customer = rng.choices(trdrs, customer_w)[0]
+        status = "Confirmed" if rng.random() < 0.85 else "Draft"
+        picked: set[int] = set()
+        for _ in range(rng.randint(1, 5)):  # distinct products: (order_id, product_id) is the key
+            picked.add(rng.choices(item_ids, item_w)[0])
+        total = 0
+        for pid in sorted(picked):
+            qty = rng.randint(1, 4)
+            price = items[pid]["price"]
+            total += qty * price
+            if status == "Draft":
+                items[pid]["reserved"] += qty
+            lines.append((order_id, pid, qty, price))
+        orders.append({"id": order_id, "customer": customer, "status": status, "total": total})
+
+    # Invoices from 1001: every Confirmed order but about 30, plus about 50 ad-hoc ones with no order.
+    confirmed = [o for o in orders if o["status"] == "Confirmed"]
+    uninvoiced = {o["id"] for o in rng.sample(confirmed, 30)}
+    to_invoice = [(o["customer"], o["id"], o["total"]) for o in confirmed if o["id"] not in uninvoiced]
+    to_invoice += [(rng.choices(trdrs, customer_w)[0], None, rng.randint(50, 3000)) for _ in range(50)]
+    rng.shuffle(to_invoice)
+
+    order_dates: dict[int, str] = {}
+    invoices, payments = [], []
+    pay_id = 1001
+    for inv_id, (customer, order_id, amount) in enumerate(to_invoice, start=1001):
+        issued = days_ago(0, 364)
+        if order_id is not None:
+            order_dates[order_id] = (issued - timedelta(days=rng.randint(0, 14))).isoformat()
+        roll = rng.random()
+        status = "paid" if roll < 0.6 else "unpaid" if roll < 0.85 else "partial"
+        # Whole euros, so the payment sums are exact and match mock_ws's `sum >= amount` rule.
+        if status == "paid":
+            parts = _split(rng, amount, rng.choices([1, 2, 3], [60, 30, 10])[0])
+        elif status == "partial" and amount >= 2:
+            parts = _split(rng, rng.randint(1, amount - 1), rng.randint(1, 2))
+        else:
+            status, parts = "unpaid", []
+        invoices.append((inv_id, customer, order_id, float(amount), status, issued.isoformat()))
+        gap = (anchor - issued).days
+        for part in parts:
+            paid_on = issued + timedelta(days=rng.randint(0, gap))  # on or after the invoice, never in the future
+            payments.append((pay_id, inv_id, float(part), paid_on.isoformat()))
+            pay_id += 1
+
+    conn.executemany(
+        "INSERT INTO orders(id, customer_id, total, status, created_at) VALUES (?,?,?,?,?)",
+        [(o["id"], o["customer"], o["total"], o["status"], order_dates.get(o["id"]) or days_ago(0, 364).isoformat())
+         for o in orders],
+    )
+    # Draft quantities sit in `reserved`; Confirmed ones already left `stock`, which never goes negative.
+    conn.executemany(
+        "INSERT INTO items(id, code, name, price, stock, reserved, created_at) VALUES (?,?,?,?,?,?,?)",
+        [(i, it["code"], it["name"], it["price"], rng.randint(0, 60) + it["reserved"], it["reserved"], it["created_at"])
+         for i, it in items.items()],
+    )
+    conn.executemany("INSERT INTO order_items(order_id, product_id, quantity, price) VALUES (?,?,?,?)", lines)
+    conn.executemany(
+        "INSERT INTO invoices_business(id, customer_id, order_id, amount, status, created_at) VALUES (?,?,?,?,?,?)",
+        invoices,
+    )
+    conn.executemany("INSERT INTO payments(id, invoice_id, amount, payment_date) VALUES (?,?,?,?)", payments)
+
+
+def _split(rng: random.Random, amount: int, n: int) -> list[int]:
+    """`amount` as up to `n` positive whole-euro parts."""
+    n = min(n, amount)
+    cuts = sorted(rng.sample(range(1, amount), n - 1))
+    return [b - a for a, b in zip([0, *cuts], [*cuts, amount])]
 
 
 def _print_quickstart(result: SeedResult) -> None:

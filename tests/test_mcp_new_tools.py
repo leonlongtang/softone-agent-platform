@@ -78,7 +78,8 @@ def test_get_context_reads_selection_fields(mcp_client: SoftOneClient, session_i
 
 def test_list_orders_bl_returns_seeded_orders(mcp_client: SoftOneClient, session_id: str) -> None:
     orders = SoftOneOrderRepository(mcp_client, session_id)
-    data = list_orders_bl(orders, status="", customer_id=None, limit=10)
+    # Newest first, so scope past the bulk demo orders (ids from 10001).
+    data = list_orders_bl(orders, status="", customer_id=47, limit=10)
     assert "orders" in data
     assert any(int(o["id"]) == 5001 for o in data["orders"])
 

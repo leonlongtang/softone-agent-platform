@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route
@@ -139,5 +141,6 @@ def create_app(*, open_chat: Callable[..., Any] = open_orchestrator, db_path: Pa
             Route("/api/db", tables),
             Route("/api/reset", reset, methods=["POST"]),
         ],
+        middleware=[Middleware(GZipMiddleware)],  # /api/db sends whole tables (DESIGN.md -> Large tables)
         lifespan=lifespan,
     )
