@@ -443,7 +443,7 @@ Decided 2026-11-06 (redesign ticket 09), with the user. The goal is one browser 
 
 - **Playwright:** `@playwright/test` lives in `web/`, with its specs in `web/e2e/`. Its `webServer` config starts both servers and waits on their ports.
 - **Fake backend:** `tests/e2e_server.py` is a test-only entry point. It builds a throwaway mock DB and serves `create_app(open_chat=…)` with `FakeOrchestrator` on :8000. `FakeOrchestrator` moves from `tests/test_web.py` to `tests/fakes.py`, so the pytest and Playwright suites share it. `python -m agent_platform.web` gets no test flag.
-- **The fake stays as it is:** it blocks `create_order` until the user says "yes", then inserts order 5006. Nothing that needs a scriptable fake is covered, except one row-link check (`frontend-build#08`): a canned `/api/turn` reply (Playwright interception, as in flow 4) blocks `update_item` on the last of 305 items, to prove a far-down jump lands.
+- **The fake stays as it is:** it blocks `create_order` until the user says "yes", then inserts order 5006. In the e2e server every other turn runs the real graph on `FakeRuntime` (`order-file#05`), so routing is real and no model runs. Nothing that needs a scriptable fake is covered, except one row-link check (`frontend-build#08`): a canned `/api/turn` reply (Playwright interception, as in flow 4) blocks `update_item` on the last of 305 items, to prove a far-down jump lands.
 - **Which build:** in CI the test runs against `next build && next start`. Locally it runs against `next dev` and reuses one already running (`reuseExistingServer`). The fake API always starts fresh, so a real API on :8000 fails the run instead of sending the turns to Ollama. A reused `next dev` can keep serving an old `globals.css`: after editing it, check the served CSS has the change before debugging the rule, and restart the server if it doesn't.
 
 ### Flows covered
@@ -454,8 +454,9 @@ Decided 2026-11-06 (redesign ticket 09), with the user. The goal is one browser 
 4. **Backend down:** `/api/*` is failed with Playwright request interception. "Can't reach the API" and Retry show.
 5. **Keyboard approve** (redesign ticket 13): `/`, type, Enter. Focus is on the approval card, not Approve. Enter on the card writes nothing (no 5006). Tab, Enter approves: 5006 is marked `+` and focus is in the composer. Esc, `]`: Orders is selected, focus is on the table, and 5006 is in view.
 6. **Runtime menu smoke** (added after `frontend-build#09`, whose checkboxes needed proof): Cancel on each confirm (New chat, runtime switch, Reset) changes nothing. Switching to Claude starts an empty chat with no turn changes while the database keeps 5006. Reset removes 5006. The theme toggle flips `data-theme` and the `theme-color` meta. The fake orchestrator serves both runtimes, so nothing is billed.
+7. **Order file** (`order-file#05`, `web/e2e/order-file.spec.ts`): a generated .xlsx (`tests/order_xlsx.py`: logo rows, ΑΦΜ above Greek headers, an ambiguous row, an unknown row, a file-price difference, a total row) is dropped on the chat. Pick the candidate, Skip the unknown row, Propose, Approve. The database holds one new order with the expected lines and total, and a second Approve is refused. A no-signal follow-up stays with sales, and "invoice that order" goes to finance.
 
-There are two projects. All six flows run on desktop (1440×900); flow 1 also runs at phone size (390×844), where the chat is a docked sheet.
+There are two projects. All seven flows run on desktop (1440×900); flow 1 also runs at phone size (390×844), where the chat is a docked sheet.
 
 **axe** (`@axe-core/playwright`, redesign ticket 13): scans inside the flows, at four states (empty workspace and approval card in flow 1, after approve in flow 1, backend down in flow 4), in dark and light, desktop only. WCAG 2.1 A + AA rules; serious or critical violations fail the run.
 

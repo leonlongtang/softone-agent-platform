@@ -41,14 +41,21 @@ def in_process_mcp(db_path: Path, calls: list[tuple[str, dict[str, Any]]] | None
 
 
 class FakeOrchestrator:
-    """Blocks create_order until "yes", then writes it to the DB, like a real agent behind the gate."""
+    """Blocks create_order until "yes", then writes it to the DB, like a real agent behind the gate.
 
-    def __init__(self, db: Path) -> None:
-        self.db = db
+    With `agents` (a real orchestrator), every other turn runs there, so the real router picks its department.
+    """
+
+    def __init__(self, db: Path, agents: Any = None) -> None:
+        self.db, self.agents = db, agents
         self.texts: list[str] = []  # every user_text that reached the agent
 
     async def ainvoke(self, state: dict) -> dict:
         self.texts.append(state["user_text"])
+        text = state["user_text"].lower()
+        # ponytail: keyword split, "recreate" or a mid-sentence "yes" goes the wrong way; fine for the e2e phrases.
+        if self.agents and "create" not in text and not text.startswith("yes"):
+            return await self.agents.ainvoke(state)
         gate = state["artifacts"].setdefault(GATE_KEY, WriteGate())
         gate.start_turn(state["user_text"])
         if gate.check("create_order", {"customer_id": 47}) is None:

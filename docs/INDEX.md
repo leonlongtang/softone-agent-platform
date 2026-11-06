@@ -14,6 +14,7 @@ These docs describe how the **API wrapper** and **MCP server** fit together, so 
 - [playbook payments](agents/playbooks/payments.md) (end-to-end payment workflows for agents)
 - [playbook invoices](agents/playbooks/invoices.md) (end-to-end invoice workflows for agents)
 - [order to cash](agents/workflows/order_to_cash.md) (end-to-end workflow: customer -> order -> invoice -> payment)
+- [ADR 0001: order files skip the model](adr/0001-order-files-skip-the-model.md) (why code, not the agent, turns an order file into a write)
 
 ## Where mock mode lives
 

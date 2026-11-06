@@ -148,6 +148,20 @@ Inventory has been deducted for the ordered items. The invoice is now issued and
 
 </details>
 
+## Order files
+
+Drop a client's CSV or .xlsx order on the chat (or use the paperclip). Code reads it and matches every row against
+SoftOne items and stock. It then proposes one `workflow_create_order` call. The model never copies the lines, and
+Approve runs that stored call once ([ADR 0001](docs/adr/0001-order-files-skip-the-model.md)).
+
+![An order file proposed: the lines table with file row numbers, a file-price flag, the total and a skipped row](docs/images/order-file-proposed.png)
+
+A real run of the web UI on the mock backend. The sheet had two logo rows, an ΑΦΜ above Greek headers, a total row,
+an ambiguous "Docking Station", an unknown item and a file price of €22,00 against SoftOne's €25,00. The ΑΦΜ filled
+in customer 47. The ambiguous row was fixed by picking DOCK-01, and the unknown row was skipped. After Approve the
+database held one new order (€295,00, Confirmed) with the three lines at SoftOne's prices. Attach and Approve each
+took about 2 seconds, with no API key set; neither step calls a model (ADR 0001).
+
 ## Quickstart
 
 Runs entirely on a seeded mock ERP: no SoftOne account and no API key needed.
