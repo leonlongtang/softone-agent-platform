@@ -23,6 +23,14 @@ _Avoid_: confirm, deny.
 The rows a turn inserted, updated or deleted in the database, shown once the turn finishes.
 _Avoid_: live changes (nothing is shown mid-turn).
 
+**Order file**
+A CSV or Excel file from a client listing the items and quantities for one order for one customer. The operator attaches it to a chat, and it becomes one pending write.
+_Avoid_: import, upload, intake, attachment (that's the file a mail carries, before it reaches the chat).
+
+**Open row**
+A row of an order file that can't go on the order yet: no item matches, several items match, or there isn't enough stock. The operator resolves it or skips it; nothing is proposed while any row is open.
+_Avoid_: error row, invalid line.
+
 **Cancel (an order)**
 Withdrawing a Draft order before it is confirmed. A cancelled order is removed entirely; there is no "cancelled" state, and a Confirmed order can't be cancelled.
 _Avoid_: cancelled status, void.
