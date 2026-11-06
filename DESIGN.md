@@ -99,7 +99,7 @@ Decided 2026-11-05 (ticket 02), with the user.
 
 - **Framework:** Next.js (App Router) + React + TypeScript. Routing earns its place because more pages are planned (settings, history, later a real SoftOne login).
 - **Styling & components:** Tailwind CSS + shadcn/ui. Its accessible primitives (tabs, dialog, popover, tooltip) fix the audit's focus, tab-role and missing-confirmation findings. `tokens.css` feeds Tailwind's theme. Token names start from the audit's semantic set (see Current UI audit → Reusable as-is); values are the visual identity ticket's call.
-- **Tables:** TanStack Table (sorting, filtering, column model) + TanStack Virtual (only on-screen rows render). Whether `/api/db` also pages on the server is still open (map fog: large-table behaviour).
+- **Tables:** TanStack Table (sorting, filtering, column model) + TanStack Virtual (only on-screen rows render). `/api/db` doesn't page: whole tables, sorted and filtered in the browser (see Large tables).
 - **Backend contract:** Starlette stays the API, and `/api/*` stays as it is. Next proxies `/api/*` to `http://127.0.0.1:8000` with a `rewrites` rule in `next.config.ts`, so the browser sees one origin and the server needs no CORS.
 - **Running it:** two processes in dev: `python -m agent_platform.web` (API on :8000) and `npm --prefix web run dev` (UI on :3000). `.claude/launch.json` already defines both. A prebuilt bundle for reviewers isn't needed for now.
 - **Where things live:** `web/` at the repo root (as on `prototype/frontend-layout`), with `web/app/tokens.css`. The old `agent_platform/web/index.html` keeps working until the new UI replaces it.
@@ -111,7 +111,7 @@ Decided 2026-11-05 (ticket 02), with the user.
 Decided 2026-11-05 (ticket 04), with the user. The mock seed grows to operator scale so density, scrolling, search and the table of turn changes can be judged. Built by an implementation ticket, not on the way.
 
 - **Extend, don't replace.** Today's rows stay exactly as they are: customers 47–51, items 1001–1005, orders 5001–5005, invoices and payments 1–5. Bulk rows come after them and never reference the original customers or items, so the originals' stock, totals and statuses never move. Tests, the README transcript and the example prompts keep working untouched.
-- **Sizes:** about 200 customers, 300 items, 1,000 orders, 3,000 order lines, 800 invoices, 1,000 payments. That's several screens per table, but `/api/db` can still return whole tables (a few hundred KB) while server paging is open (map fog: large-table behaviour).
+- **Sizes:** about 200 customers, 300 items, 1,000 orders, 3,000 order lines, 800 invoices, 1,000 payments. That's several screens per table, and `/api/db` still returns whole tables (see Large tables).
 - **Bulk ids:** customers (`trdr`) from 1000, items from 2001 (codes in the existing `WORD-NN` style), orders from 10001, invoices and payments from 1001.
 - **Greek text:** about half the bulk customers have Greek names and addresses (e.g. "Παπαδόπουλος Α.Ε.", "Λεωφ. Κηφισίας 120, Μαρούσι") and about a fifth of the bulk items have Greek names. Everything else is English, including the UI.
 - **Skew:** about 20 big customers carry most of the orders. Item popularity is skewed the same way.
@@ -195,7 +195,7 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
   - deleted rows: stay at their position, struck through on `--bad-soft`, with a `−` in the gutter.
 - **Counts:** shown on the sidebar badges and in the table bar.
 - **Jumping:** the operator moves only by clicking a change chip, in the turn or on the folded bar. A click:
-  - selects the table, clears the filter and the changed-only box, and folds the chat;
+  - selects the table, clears the filter and the changed-only box, resets the sort to key order, and folds the chat;
   - scrolls the first changed row to a third of the way down the viewport;
   - flashes it for 1.6s (a static outline under reduced motion; timing in Motion).
 - **No auto-jump to a table** after a turn. The audit marked it "Revisit"; it's dropped because it moves the operator without asking.
@@ -229,9 +229,20 @@ The question appears as a right-aligned `--accent-soft` bubble. Below it:
 - **Kept, with this section's look:** the approval card, the trace and the name labels.
 - **Changed:** the diff box shrinks to change chips; status pills come from a value map; tab change counts move to the sidebar badges.
 - **Dropped:** auto-jump and the header subtitle.
-- **Still open:** the name lookup, under paging (map: large-table behaviour).
+- **Name lookup:** stays in the client, over the whole tables (see Large tables).
 
 **Not settled here:** keyboard shortcuts and focus order between the chat and the table (map fog).
+
+## Large tables
+
+Decided 2026-11-06 (ticket 11), with the user.
+
+- **Whole tables in the browser.** `GET /api/db` keeps returning every table in full. Filtering, sorting and id→name labels all run in the client (TanStack Table + Virtual), over the loaded tables. The diff, the chip jump and the labels need no new API.
+- **API change:** add Starlette's built-in `GZipMiddleware` (about 1 MB of JSON → ~150 KB at the Demo data sizes, estimated). Nothing else.
+- **Ceiling:** past ~50k rows, or when the real SoftOne connection comes (out of scope), move to server paging with a names endpoint. The chip jump would then need to find a row's page.
+- **Refetch:** on load, after Reset, and after a turn whose diff isn't empty. Always the whole `/api/db`, never per table. Read-only turns don't refetch.
+- **Filter:** one box per table and no query syntax. Plain substring match on the text as displayed (formatted money like `1.225,00`, name labels, status text, ids), across every column of the current table. Case- and accent-insensitive (lower-case + strip diacritics), so `παπαδοπουλος` finds `Παπαδόπουλος`.
+- **Sort:** clicking a header cycles ascending → descending → key order, one column at a time. Default is key order. Foreign-key columns sort by id, not by label. A turn's deleted rows sort like any other row. Each table keeps its sort while you switch tables during the session; nothing is persisted. A change-chip click resets the sort (see What changed).
 
 ## Responsive
 
