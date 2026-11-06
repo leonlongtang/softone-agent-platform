@@ -237,6 +237,12 @@ export function Workspace() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+  // The last input, so menus and dialogs opened from the keyboard skip their motion (DESIGN.md → Motion → Rules; globals.css).
+  useEffect(() => {
+    const mark = (e: Event) => { document.documentElement.dataset.input = e.type === "keydown" ? "keys" : "pointer"; };
+    for (const t of ["keydown", "pointerdown"]) window.addEventListener(t, mark, true);
+    return () => { for (const t of ["keydown", "pointerdown"]) window.removeEventListener(t, mark, true); };
+  }, []);
   const pick = (t: string) => { setTable(t); setJumpTo(null); }; // a remount must not replay the last jump
   const linksFor = (call: TraceCall) => (db ? rowLinks(call, db, keys) : []);
   const changedIn = (t: string) => changes[t]?.counts.total ?? 0;

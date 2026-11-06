@@ -16,10 +16,6 @@ const PILL = { ok: "text-ok", warn: "text-warn", bad: "text-bad" } as const;
 // tint only their changed cells. Tints are opaque, so pinned cells take them instead of --panel.
 const TINT = { insert: "bg-ok-soft", update: "", delete: "bg-bad-soft" } as const;
 const MARK_TONE = { insert: "text-ok", update: "text-warn", delete: "text-bad" } as const;
-// A jump's --accent outline (DESIGN.md → What changed → Jumping), drawn on the cells: pinned cells cover a row outline.
-const FLASH = "group-data-[flash]:shadow-[inset_0_2px_var(--accent),inset_0_-2px_var(--accent)]";
-const FLASH_FIRST = "group-data-[flash]:shadow-[inset_2px_0_var(--accent),inset_0_2px_var(--accent),inset_0_-2px_var(--accent)]";
-const FLASH_LAST = "group-data-[flash]:last:shadow-[inset_-2px_0_var(--accent),inset_0_2px_var(--accent),inset_0_-2px_var(--accent)]";
 
 // ponytail: column widths from the longest displayed text × an average glyph width, not measured.
 // Fixed widths keep columns still while rows scroll in and out; measure with canvas if they clip badly.
@@ -84,17 +80,20 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
     overscan: 10,
   });
   // A jump: the row a third of the way down, instantly (smooth scrolling renders blank rows), focus on the table,
-  // and an --accent outline for 1.6s (DESIGN.md → Motion; ticket 13 makes it fade).
-  const [flash, setFlash] = useState<string | null>(null);
+  // and an --accent outline (DESIGN.md → What changed → Jumping; Motion): a pointer jump's holds then fades, a key's stays
+  // still. Drawn in globals.css; these timers mirror --flash-hold and --flash-fade (tokens.css).
+  // ponytail: copied numbers drift if the tokens change; read them with getComputedStyle if they ever do.
+  const [flash, setFlash] = useState<{ id: string; fade: boolean } | null>(null);
   const seq = jump?.seq;
   useEffect(() => {
     const el = scrollRef.current, id = jump && tableRowsModel[jump.index]?.id;
     if (!el || !id) return;
     virtualizer.scrollToOffset(Math.max(0, ROW + jump.index * ROW - el.clientHeight / 3)); // ROW: the header
     el.focus({ preventScroll: true });
-    setFlash(id); // the flash starts with the jump
-    const t = setTimeout(() => setFlash(null), 1600); // --flash-hold + --flash-fade (tokens.css)
-    return () => clearTimeout(t);
+    setFlash({ id, fade: false }); // the flash starts with the jump
+    const hold = setTimeout(() => setFlash({ id, fade: true }), 1200);
+    const end = setTimeout(() => setFlash(null), 1600);
+    return () => { clearTimeout(hold); clearTimeout(end); };
   }, [seq]); // eslint-disable-line react-hooks/exhaustive-deps -- once per jump, not on each render
   const items = virtualizer.getVirtualItems();
   const top = items[0]?.start ?? 0;
@@ -158,10 +157,10 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
                 key={row.id}
                 aria-rowindex={v.index + 2}
                 data-change={change?.op}
-                data-flash={flash === row.id ? (jump?.still ? "static" : "true") : undefined} // keys never animate (DESIGN.md → Motion)
+                data-flash={flash?.id === row.id ? (jump?.still ? "static" : flash.fade ? "fade" : "true") : undefined} // keys never animate (DESIGN.md → Motion)
                 className="group h-(--row)"
               >
-                <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${FLASH_FIRST} ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>
+                <td className={`sticky left-0 z-20 border-b border-line p-0 text-center font-mono ${tint || "bg-panel"} ${change ? MARK_TONE[change.op] : ""}`}>
                   {change && <><span aria-hidden>{changeMark(change)}</span><span className="sr-only">{changeNote(change)}</span></>}
                 </td>
                 {row.getAllCells().map((cell, i) => {
@@ -173,7 +172,7 @@ export function DataTable({ name, rows, items: data, pk, nameOf, sort, onSort, c
                       key={cell.id}
                       lang={isGreek(text) ? "el" : undefined}
                       style={pinStyle(p)}
-                      className={`truncate border-b border-line px-3 ${FLASH} ${FLASH_LAST} ${p === undefined ? "" : "z-20"} ${bg} ${change?.op === "delete" ? "line-through" : ""} ${alignRight(k) ? "text-right" : ""}`}
+                      className={`truncate border-b border-line px-3 ${p === undefined ? "relative" : "z-20"} ${bg} ${change?.op === "delete" ? "line-through" : ""} ${alignRight(k) ? "text-right" : ""}`}
                     >
                       <Cell column={k} value={value} nameOf={nameOf} />
                     </td>

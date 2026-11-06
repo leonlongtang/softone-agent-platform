@@ -73,8 +73,8 @@ function Chips({ diff, onJump }: { diff: DiffEntry[] | null | undefined; onJump?
             <button
               type="button"
               disabled={!onJump} // its changes have expired (DESIGN.md → What changed → Lifetime)
-              onClick={() => onJump?.(tables[i])}
-              className="rounded-full border border-line bg-raised px-2.5 py-0.5 text-sm tabular-nums enabled:hover:border-primary focus-visible:outline-2 focus-visible:outline-ring"
+              onClick={(ev) => onJump?.(tables[i], undefined, ev.detail === 0)} // detail 0: Enter or Space, so no motion
+              className="press rounded-full border border-line bg-raised px-2.5 py-0.5 text-sm tabular-nums enabled:hover:border-primary focus-visible:outline-2 focus-visible:outline-ring"
             >
               {c}
             </button>
@@ -121,7 +121,7 @@ function ErrorLine({ res, runtime, onRetry }: { res: TurnResponse | null; runtim
   return (
     <div className="flex items-center gap-3 rounded-md border border-bad bg-bad-soft px-3 py-2 text-bad">
       <span className="flex-1" title={error || undefined}>{text}</span>
-      <button type="button" onClick={onRetry} className="h-8 rounded-sm border border-bad px-3 font-medium hover:bg-raised focus-visible:outline-2 focus-visible:outline-ring">
+      <button type="button" onClick={onRetry} className="press h-8 rounded-sm border border-bad px-3 font-medium hover:bg-raised focus-visible:outline-2 focus-visible:outline-ring">
         Retry
       </button>
     </div>
@@ -138,7 +138,10 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
 }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [draft, setDraft] = useState("");
-  const [open, setOpen] = useState(true);
+  const [open, setOpenState] = useState(true);
+  // Opened or folded from the keyboard: no motion (DESIGN.md → Motion). Starts true: page load isn't an open.
+  const [instant, setInstant] = useState(true);
+  const setOpen = (to: boolean, byKey = false) => { setInstant(byKey); setOpenState(to); };
   const [status, setStatus] = useState(notice); // a new chat's note, e.g. that Claude turns are billed
   const [busy, setBusy] = useState(false);
   const nextId = useRef(0);
@@ -165,18 +168,18 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
     const target = focusNext.current === "card" ? cardRef.current : focusNext.current === "composer" ? inputRef.current : null;
     focusNext.current = null;
     if (target && !isCoarse()) target.focus();
-  }, [entries]);
+  }, [entries, open]); // reopening lands on the latest turn too
 
   // A chip or row link: the workspace moves the table and focus; the chat folds and says where it landed.
   const jump: Jump = (table, key, step) => {
     const sentence = onJump(table, key, step);
     if (sentence) {
       setStatus(sentence);
-      setOpen(false);
+      setOpen(false, step);
     }
     return sentence;
   };
-  useImperativeHandle(ref, () => ({ jump, compose: () => { setOpen(true); inputRef.current?.focus(); }, turns, say: setStatus }));
+  useImperativeHandle(ref, () => ({ jump, compose: () => { setOpen(true, true); inputRef.current?.focus(); }, turns, say: setStatus }));
 
   async function send(kind: TurnKind, text: string, replace?: number) {
     if (busy || !text.trim()) return;
@@ -204,54 +207,56 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
       tabIndex={-1}
       aria-label="Chat"
       data-open={open || undefined}
+      data-instant={instant || undefined}
       // Phone first (DESIGN.md → Responsive → Phone): a bar docked to the bottom edge, or open, a sheet over everything
       // below the top bar that shrinks with the on-screen keyboard. From 640 it floats (DESIGN.md → Structure and flows → Floating chat).
       // z-40: over the table's pinned cells (z-30), under menus and dialogs (z-50).
       className="chat absolute inset-x-0 bottom-0 z-40 flex flex-col gap-2 border-t border-line p-2 pb-[calc(var(--space-2)+env(safe-area-inset-bottom))] max-sm:data-open:top-0 sm:right-auto sm:bottom-4 sm:left-1/2 sm:w-[min(880px,100%-32px)] sm:-translate-x-1/2 sm:rounded-lg sm:border-0 sm:pb-2 sm:shadow-float"
     >
-      {open && (
-        // The approval card's one container query reads this width (DESIGN.md → Responsive → Container queries).
-        // mt-auto on the first entry: in a sheet taller than the log, the latest turn sits by the composer.
-        <div ref={logRef} className="chat-log @container flex flex-col gap-2 overflow-y-auto [&>:first-child]:mt-auto">
-          {entries.length === 0 && (
-            <div className={`${block} flex flex-col items-center gap-2 text-center`}>
-              <p className="text-muted-foreground">Ask the sales, inventory or finance agent. Writes wait for your approval.</p>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                {EXAMPLES.map((x) => (
-                  <button
-                    key={x}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => send("ask", x)}
-                    className="rounded-full border border-line bg-bg px-2.5 py-0.5 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
-                  >
-                    {x}
-                  </button>
-                ))}
-              </div>
+      {/* The approval card's one container query reads this width (DESIGN.md → Responsive → Container queries).
+          mt-auto on the first entry: in a sheet taller than the log, the latest turn sits by the composer.
+          Folded, it stays mounted so it can fade out (globals.css), inert and hidden from assistive tech meanwhile. */}
+      <div ref={logRef} inert={!open} aria-hidden={!open || undefined} className="chat-log @container flex flex-col gap-2 overflow-y-auto [&>:first-child]:mt-auto">
+        {entries.length === 0 && (
+          <div className={`${block} flex flex-col items-center gap-2 text-center`}>
+            <p className="text-muted-foreground">Ask the sales, inventory or finance agent. Writes wait for your approval.</p>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {EXAMPLES.map((x) => (
+                <button
+                  key={x}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => send("ask", x)}
+                  className="press rounded-full border border-line bg-bg px-2.5 py-0.5 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+                >
+                  {x}
+                </button>
+              ))}
             </div>
-          )}
-          {entries.map((e, i) => (
-            <Turn
-              key={e.id}
-              entry={e}
-              next={entries[i + 1]}
-              isLast={i === entries.length - 1}
-              live={e.id === liveId}
-              busy={busy}
-              nameOf={nameOf}
-              runtime={runtime}
-              cardRef={cardRef}
-              onJump={jump}
-              rowLinks={rowLinks}
-              onDecide={(k) => send(k, REPLY[k])}
-              onRetry={() => send(e.kind, e.text, e.id)}
-            />
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+        {entries.map((e, i) => (
+          <Turn
+            key={e.id}
+            entry={e}
+            next={entries[i + 1]}
+            isLast={i === entries.length - 1}
+            live={e.id === liveId}
+            busy={busy}
+            nameOf={nameOf}
+            runtime={runtime}
+            cardRef={cardRef}
+            onJump={jump}
+            rowLinks={rowLinks}
+            onDecide={(k) => send(k, REPLY[k])}
+            onRetry={() => send(e.kind, e.text, e.id)}
+          />
+        ))}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <p role="status" className={status ? `${block} flex-1 py-1 text-sm text-muted-foreground` : "sr-only"}>
+          {/* One turn per --spin, linear; hidden under reduced motion, where the seconds carry the signal. */}
+          {busy && <span aria-hidden className="mr-2 inline-block size-3 animate-spin rounded-full border-2 border-current border-r-transparent align-[-1px] [animation-duration:var(--spin)] motion-reduce:hidden" />}
           {status}
           {busy && <Seconds />}
         </p>
@@ -267,9 +272,9 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
         <button
           type="button"
           disabled={waiting && open} // a row link can fold it mid-approval; it can always reopen
-          onClick={() => setOpen(!open)}
+          onClick={(ev) => setOpen(!open, ev.detail === 0)} // detail 0: Enter or Space
           aria-expanded={open}
-          className="h-8 shrink-0 rounded-sm bg-raised px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
+          className="press h-8 shrink-0 rounded-sm bg-raised px-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
         >
           {open ? "Hide chat" : `Chat (${turns})`}
         </button>
@@ -288,7 +293,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
                 ev.preventDefault();
                 send("ask", draft);
               } else if (ev.key === "Escape" && !waiting) { // fold, and focus the table
-                setOpen(false);
+                setOpen(false, true);
                 onLeave();
               }
             }}
@@ -298,7 +303,7 @@ export function Chat({ ref, notice, nameOf, runtime, disabled, onTurn, onJump, o
         <button
           type="submit"
           disabled={disabled || waiting || busy || !draft.trim()}
-          className="h-8 shrink-0 rounded-sm bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
+          className="press h-8 shrink-0 rounded-sm bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50"
         >
           Send
         </button>
@@ -394,14 +399,14 @@ function Verdict({ next, busy, onDecide }: { next?: Entry; busy: boolean; onDeci
       <button
         type="button"
         onClick={() => onDecide("approve")}
-        className="h-8 rounded-sm bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="press h-8 rounded-sm bg-primary px-3 font-medium text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         Approve
       </button>
       <button
         type="button"
         onClick={() => onDecide("reject")}
-        className="h-8 rounded-sm border border-bad px-3 font-medium text-bad hover:bg-bad-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="press h-8 rounded-sm border border-bad px-3 font-medium text-bad hover:bg-bad-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         Reject
       </button>

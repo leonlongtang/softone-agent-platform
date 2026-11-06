@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "./tokens.css";
 
@@ -123,3 +122,72 @@
 .md table { border-collapse: collapse; font-size: var(--text-sm); display: block; overflow-x: auto; }
 .md th, .md td { border: 1px solid var(--line); padding: 0 var(--space-2); text-align: left; }
 .md strong { font-weight: 600; }
+
+/* Motion (DESIGN.md → Motion): CSS transitions on transform and opacity, properties always named, exits faster than
+   entries. Keyboard-initiated actions never animate: the workspace sets <html data-input="keys"> on keydown and
+   "pointer" on pointerdown; the chat marks its own key-driven folds with data-instant. */
+
+/* Press feedback (Approve/Reject, Send, Retry, chips, dialog buttons) and hover colour on fine pointers only. */
+.press { transition: transform var(--dur-press) var(--ease-out); }
+.press:enabled:active { transform: scale(0.97); }
+:root[data-input="keys"] .press:active { transform: none; }
+@media (hover: hover) and (pointer: fine) {
+  .press {
+    transition-property: transform, opacity, color, background-color, border-color;
+    transition-duration: var(--dur-press), var(--dur-hover), var(--dur-hover), var(--dur-hover), var(--dur-hover);
+  }
+}
+
+/* Chip-jump flash: the --accent outline holds --flash-hold ("true"), then fades over --flash-fade ("fade"); a key
+   jump ("static") never fades. Drawn on each cell, since pinned cells cover a row outline. Cells are positioned. */
+[data-flash] > td::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: inset 0 2px var(--accent), inset 0 -2px var(--accent);
+}
+[data-flash] > td:first-child::after { box-shadow: inset 2px 0 var(--accent), inset 0 2px var(--accent), inset 0 -2px var(--accent); }
+[data-flash] > td:last-child::after { box-shadow: inset -2px 0 var(--accent), inset 0 2px var(--accent), inset 0 -2px var(--accent); }
+[data-flash="fade"] > td::after { opacity: 0; transition: opacity var(--flash-fade) var(--ease-out); }
+
+/* Chat open: the log fades up from 8px over --dur; fold: back down over --dur-fast. The composer never moves.
+   display is discrete, so the folded log stays painted while it fades (no fade-out where unsupported). */
+.chat-log {
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out), display var(--dur) allow-discrete;
+}
+@starting-style { .chat-log { opacity: 0; transform: translateY(8px); } }
+.chat:not([data-open]) .chat-log { display: none; opacity: 0; transform: translateY(8px); transition-duration: var(--dur-fast); }
+.chat[data-instant] .chat-log { transition: none; }
+
+/* Menus: fade + scale(0.97) from the trigger (Base UI sets --transform-origin), --dur-fast in, --dur-press out. */
+[data-slot="dropdown-menu-content"] { transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+[data-slot="dropdown-menu-content"]:is([data-starting-style], [data-ending-style]) { opacity: 0; transform: scale(0.97); }
+[data-slot="dropdown-menu-content"][data-ending-style] { transition-duration: var(--dur-press); }
+
+/* Dialogs: fade + scale(0.97), centred, --dur in, --dur-fast out; the backdrop fades with them. */
+:is([data-slot="dialog-content"], [data-slot="dialog-overlay"]) { transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out); }
+:is([data-slot="dialog-content"], [data-slot="dialog-overlay"]):is([data-starting-style], [data-ending-style]) { opacity: 0; }
+[data-slot="dialog-content"]:is([data-starting-style], [data-ending-style]) { transform: scale(0.97); }
+:is([data-slot="dialog-content"], [data-slot="dialog-overlay"])[data-ending-style] { transition-duration: var(--dur-fast); }
+
+/* Phone bottom sheets (dialogs and the open chat): up from the bottom edge, --dur-sheet in, --dur-sheet-out out. */
+@media (max-width: 639px) {
+  :is([data-slot="dialog-content"], [data-slot="dialog-overlay"], .chat-log) { transition-duration: var(--dur-sheet); transition-timing-function: var(--ease-drawer); }
+  :is([data-slot="dialog-content"], [data-slot="dialog-overlay"])[data-ending-style], .chat:not([data-open]) .chat-log { transition-duration: var(--dur-sheet-out); }
+  [data-slot="dialog-content"]:is([data-starting-style], [data-ending-style]), .chat:not([data-open]) .chat-log { transform: translateY(100%); }
+  @starting-style { .chat-log { transform: translateY(100%); } }
+  .chat[data-open] { overflow: clip; } /* the log slides up behind the composer, not over it */
+}
+
+/* Reduced motion: no translate, scale or spinner (the spinner hides itself); opacity fades stay, at --dur-fast. The
+   flash holds its outline for the whole 1.6s. */
+@media (prefers-reduced-motion: reduce) {
+  .press:enabled:active { transform: none; }
+  [data-flash="fade"] > td::after { opacity: 1; transition: none; }
+  :is([data-slot="dialog-content"], [data-slot="dropdown-menu-content"]):is([data-starting-style], [data-ending-style]),
+  .chat-log, .chat:not([data-open]) .chat-log { transform: none; }
+  @starting-style { .chat-log { transform: none; } }
+  :is([data-slot="dialog-content"], [data-slot="dialog-overlay"], .chat-log),
+  :is([data-slot="dialog-content"], [data-slot="dialog-overlay"])[data-ending-style],
+  .chat:not([data-open]) .chat-log { transition-duration: var(--dur-fast); }
+}
+
+:root[data-input="keys"] :is([data-slot="dialog-content"], [data-slot="dialog-overlay"], [data-slot="dropdown-menu-content"]) { transition: none; }

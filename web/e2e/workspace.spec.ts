@@ -259,3 +259,44 @@ test("runtime menu: confirms cancel cleanly, the switch starts a new chat, Reset
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(meta).toHaveAttribute("content", "#f6f4f0");
 });
+
+// DESIGN.md → Motion: a pointer jump's outline holds, fades, and goes; under reduced motion it stays opaque throughout,
+// and the busy line's spinner is hidden (the counting seconds carry the signal).
+test("motion: the jump outline holds then fades; reduced motion keeps it and hides the spinner", async ({ page }) => {
+  await askForWrite(page);
+  await page.getByRole("button", { name: "Approve" }).click();
+  await expect(order5006(page)).toHaveAttribute("data-change", "insert");
+  const outline = () => order5006(page).getByRole("cell").first().evaluate((td) => getComputedStyle(td, "::after").opacity);
+
+  const chip = page.getByRole("button", { name: "Orders +1" });
+  await chip.click();
+  await expect(order5006(page)).toHaveAttribute("data-flash", "true");
+  expect(await outline()).toBe("1");
+  await page.waitForFunction(() => document.querySelector('tr[data-flash="fade"]')); // per frame: the fade lasts 400ms
+  await expect(order5006(page)).not.toHaveAttribute("data-flash");
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await chip.click();
+  const held = await page.waitForFunction(() => {
+    const td = document.querySelector('tr[data-flash="fade"] > td');
+    return td && getComputedStyle(td, "::after").opacity;
+  });
+  expect(await held.jsonValue()).toBe("1");
+
+  let release = () => {};
+  await page.route("**/api/turn", async (route) => {
+    await new Promise<void>((r) => { release = r; });
+    await route.continue();
+  });
+  await page.getByRole("button", { name: "Chat (1)" }).click();
+  const composer = page.getByRole("textbox", { name: "Ask the agent" });
+  await composer.fill("Show order 5006");
+  await composer.press("Enter");
+  const spinner = page.getByRole("status").locator(".animate-spin");
+  await expect(spinner).toHaveCount(1);
+  await expect(spinner).toBeHidden();
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(spinner).toBeVisible();
+  release();
+  await expect(spinner).toHaveCount(0);
+});
