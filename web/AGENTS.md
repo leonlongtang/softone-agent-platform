@@ -10,4 +10,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## shadcn
 
-After `npx shadcn add`, check that the packages its new files import are in `package.json`. It can write the files and skip the install, and `tsc` stays green until the import is resolved.
+After `npx shadcn add`, check that the packages its new files import are in `package.json`. It can write the files and skip the install, and `tsc` stays green until the import is resolved. Drop the `tw-animate-css` import it adds to `globals.css`, and the animation classes in its files (lint flags them): motion lives in `globals.css` (`DESIGN.md → Motion`).
