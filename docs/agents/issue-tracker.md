@@ -10,7 +10,7 @@ Issues and specs for this repo live as markdown files in `.scratch/`.
 - Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
 - Only the user sets a ticket to `ready-for-agent`. Tickets from a spec whose decisions the agent drafted (no grilling round, no explicit sign-off) start as `needs-triage`, so an unattended loop (Ralph, `/implement-spec`) can't build on unsettled decisions
 - Implementing a ticket sets its `Status:` to `resolved` in the same commit as the code, so the board shows what's unblocked
-- Tick a checkbox only once it's proven; an unproven one stays unticked, with the reason in the Done note
+- Tick a checkbox only once it's proven: a committed test or check goes red if the behaviour breaks, and it ran after the last code change. A throwaway run is evidence for the Done note, not a tick. An unproven box stays unticked, with the reason in the Done note
 - Comments and conversation history append to the bottom of the file under a `## Comments` heading
 
 ## When a skill says "publish to the issue tracker"
