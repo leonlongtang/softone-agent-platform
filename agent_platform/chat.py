@@ -105,6 +105,8 @@ class Chat:
         async with self._lock:
             if WriteGate(self._state["artifacts"].get(GATE_KEY)).blocked:
                 raise Conflict("Approve or reject the pending write first.")
+            if self._order and self._order.call:  # ADR 0001: Approve runs the card the operator saw
+                raise Conflict("Approve or reject the proposed order first.")
             order = OrderFile(data, name)
             async with self._open_mcp() as call_tool:
                 await order.match(Reader(call_tool))

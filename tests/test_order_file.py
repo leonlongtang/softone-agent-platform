@@ -1,6 +1,7 @@
 """Order-file parsing (`agent_platform/order_file.py`). Fixtures are built here, no binary files."""
 
 import io
+import zipfile
 
 import openpyxl
 import pytest
@@ -69,8 +70,9 @@ def test_xlsx_header_below_logo_block_and_customer_hints():
 
 
 def test_header_must_be_within_first_ten_rows():
-    rows = [[f"line {i}"] for i in range(10)] + [["Item", "Qty"], ["2001", 1]]
-    parsed = parse(xlsx(("S", rows)), "o.xlsx")
+    on_row_10 = [[f"line {i}"] for i in range(9)] + [["Item", "Qty"], ["2001", 1]]
+    assert parse(xlsx(("S", on_row_10)), "o.xlsx").header_row == 10
+    parsed = parse(xlsx(("S", [["line 9"]] + on_row_10)), "o.xlsx")  # pushed to row 11
     assert parsed.header_row is None
     assert parsed.missing == ["item", "qty"]
 
@@ -81,9 +83,25 @@ def test_stops_at_empty_row_and_skips_total_rows():
     assert [r.item_text for r in parsed.rows] == ["2001", "2002"]
 
 
-def test_formula_cells_come_back_as_saved_values(monkeypatch):
-    # openpyxl can't compute formulas, so a workbook it writes has no cached values.
-    # Check that the file is opened with data_only (saved values), not formula text.
+def with_saved_value(data: bytes, value: str) -> bytes:
+    """`data` with Excel's saved value written into its formula cells (openpyxl writes them empty)."""
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as src, zipfile.ZipFile(out, "w") as dst:
+        for info in src.infolist():
+            part = src.read(info)
+            if info.filename == "xl/worksheets/sheet1.xml":
+                part = part.replace(b"<v />", f"<v>{value}</v>".encode())
+            dst.writestr(info, part)
+    return out.getvalue()
+
+
+def test_formula_cells_come_back_as_saved_values():
+    rows = [["Item", "Qty"], ["2001", "=1+1"]]
+    assert parse(with_saved_value(xlsx(("S", rows)), "2"), "o.xlsx").rows[0].qty == 2
+    assert parse(xlsx(("S", rows)), "o.xlsx").rows[0].qty is None  # no saved value: flagged, never the formula
+
+
+def test_xlsx_is_opened_read_only(monkeypatch):
     seen = {}
     real = openpyxl.load_workbook
 
@@ -92,9 +110,8 @@ def test_formula_cells_come_back_as_saved_values(monkeypatch):
         return real(*args, **kwargs)
 
     monkeypatch.setattr(order_file.openpyxl, "load_workbook", spy)
-    parsed = parse(xlsx(("S", [["Item", "Qty"], ["2001", "=1+1"]])), "o.xlsx")
-    assert seen["data_only"] is True and seen["read_only"] is True
-    assert parsed.rows[0].qty is None  # no saved value: flagged, never the formula text
+    parse(xlsx(("S", [["Item", "Qty"], ["2001", 1]])), "o.xlsx")
+    assert seen["read_only"] is True  # Decision 16; no behaviour shows it apart from memory use
 
 
 def test_missing_headers_returns_preview():

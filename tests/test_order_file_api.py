@@ -124,6 +124,14 @@ def test_typed_turn_refused_while_an_order_file_is_open(client):
     assert client.post("/api/turn", json={"text": "create an order"}).status_code == 200
 
 
+def test_upload_refused_while_an_order_is_proposed(client):
+    attach(client, SMALL)
+    proposed = client.post("/api/order-file/propose").json()
+    refused = attach(client, ORDER)
+    assert refused.status_code == 409 and refused.json() == {"error": "Approve or reject the proposed order first."}
+    assert client.get("/api/order-file").json() == proposed
+
+
 def test_second_file_replaces_and_new_chat_or_reset_drop_it(client):
     attach(client, ORDER)
     assert len(attach(client, SMALL).json()["rows"]) == 1
@@ -147,10 +155,11 @@ def test_attach_errors_are_400_with_their_message(client, text, name, message):
     assert client.get("/api/info").json()["order_file"] is None
 
 
-def test_bad_fixes_are_400(client):
-    attach(client, ORDER)
+def test_bad_fixes_are_400_and_leave_the_card(client):
+    card = attach(client, ORDER).json()
     for bad in ({"row": 99, "skip": True}, {"row": 6, "qty": 0}, {"row": 6, "qty": "2"}, {}, {"customer": 999999}):
         assert client.patch("/api/order-file", json=bad).status_code == 400, bad
+        assert client.get("/api/order-file").json() == card, bad
 
 
 def test_customer_search_then_pick(client):
